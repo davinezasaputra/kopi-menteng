@@ -36,23 +36,56 @@ class ProductController extends Controller
     return response()->json(['status' => 'success', 'data' => $product], 201);
 }
 
+    // FUNGSI UPDATE (EDIT / RESTOCK)
     public function update(Request $request, $id)
     {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Produk tidak ditemukan'
+            ], 404);
+        }
+
         $request->validate([
             'name' => 'required|string',
             'price' => 'required|numeric',
             'stock' => 'required|numeric',
-            'category_id' => 'required|string',
+            'category_id' => 'required|numeric'
         ]);
 
-        $product = Product::findOrFail($id);
         $product->update([
             'name' => $request->name,
             'price' => $request->price,
             'stock' => $request->stock,
-            'category_id' => $request->category_id,
+            'category_id' => $request->category_id
         ]);
 
-        return response()->json(['status' => 'success', 'data' => $product], 200);
+        return response()->json([
+            'status' => 'success', 
+            'message' => 'Data produk berhasil diperbarui',
+            'data' => $product
+        ]);
+    }
+
+    // FUNGSI DELETE (HAPUS)
+    public function destroy($id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Produk tidak ditemukan'
+            ], 404);
+        }
+
+        $product->delete();
+
+        return response()->json([
+            'status' => 'success', 
+            'message' => 'Produk berhasil dihapus'
+        ]);
     }
 }
