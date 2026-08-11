@@ -7,7 +7,7 @@ interface Product {
   name: string;
   price: number;
   stock: number;
-  category_id: number;
+  category_id: string;
 }
 
 interface Category {
@@ -93,13 +93,14 @@ export default function Inventory() {
   };
 
   // --- SIMPAN (POST) ATAU PERBARUI (PUT) ---
+  // --- SIMPAN (POST) ATAU PERBARUI (PUT) ---
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // PENJAGA BARU: Hentikan proses jika kategori masih kosong
-    if (!formData.category_id) {
-      alert('Mohon pilih kategori produk terlebih dahulu!');
-      return;
+    
+    // PENJAGA KETAT: Blokir form jika kategori belum dipilih
+    if (!formData.category_id || formData.category_id === '' || formData.category_id === '0') {
+      alert('⚠️ WAJIB: Mohon pilih Kategori Produk terlebih dahulu dari dropdown!');
+      return; // Hentikan eksekusi, jangan kirim ke Laravel
     }
 
     const token = localStorage.getItem('token');
@@ -109,7 +110,7 @@ export default function Inventory() {
         name: formData.name,
         price: Number(formData.price),
         stock: Number(formData.stock),
-        category_id: Number(formData.category_id)
+        category_id: formData.category_id
       };
 
       if (isEditing && editId) {
@@ -125,9 +126,9 @@ export default function Inventory() {
       }
       
       setShowModal(false);
-      fetchProducts();
+      fetchProducts(); // Refresh tabel setelah sukses
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Gagal menyimpan produk.');
+      alert(error.response?.data?.message || 'Gagal menyimpan produk. Cek koneksi Anda.');
     }
   };
 

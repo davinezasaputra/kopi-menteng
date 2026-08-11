@@ -52,7 +52,8 @@ class ProductController extends Controller
             'name' => 'required|string',
             'price' => 'required|numeric',
             'stock' => 'required|numeric',
-            'category_id' => 'required|numeric'
+            // UBAH VALIDASI MENJADI string (KARENA MENGGUNAKAN UUID)
+            'category_id' => 'required|string' 
         ]);
 
         $product->update([
@@ -70,6 +71,7 @@ class ProductController extends Controller
     }
 
     // FUNGSI DELETE (HAPUS)
+    // FUNGSI DELETE (HAPUS)
     public function destroy($id)
     {
         $product = Product::find($id);
@@ -77,15 +79,24 @@ class ProductController extends Controller
         if (!$product) {
             return response()->json([
                 'status' => 'error', 
-                'message' => 'Produk tidak ditemukan'
+                'message' => 'Produk tidak ditemukan di database'
             ], 404);
         }
 
-        $product->delete();
-
-        return response()->json([
-            'status' => 'success', 
-            'message' => 'Produk berhasil dihapus'
-        ]);
+        try {
+            // Mencoba menghapus produk
+            $product->delete();
+            
+            return response()->json([
+                'status' => 'success', 
+                'message' => 'Produk berhasil dihapus'
+            ]);
+        } catch (\Exception $e) {
+            // MENANGKAP ERROR JIKA PRODUK SUDAH PERNAH DIBELI
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Gagal menghapus! Produk ini tidak bisa dihapus karena sudah tercatat dalam riwayat transaksi kasir.'
+            ], 400);
+        }
     }
 }
