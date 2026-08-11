@@ -185,17 +185,39 @@ export default function Pos() {
   };
 
   // --- FUNGSI PEMBAYARAN TUNAI FINAL ---
-  const handleConfirmCashPayment = (e: React.FormEvent) => {
+  const handleConfirmCashPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (Number(cashTendered) < total) return;
 
-    window.print();
-    setTimeout(() => {
-      setCart([]);
-      setShowPaymentModal(false);
-      setShowCashModal(false);
-      setCashTendered('');
-    }, 1000);
+    const token = localStorage.getItem('token');
+    setIsProcessing(true);
+    
+    try {
+      // 1. Siapkan payload dengan payment_method: 'cash'
+      const payload = {
+        payment_method: 'cash',
+        items: cart.map(item => ({ product_id: item.id, quantity: item.quantity }))
+      };
+
+      // 2. Tembak ke endpoint terpusat yang sudah Anda buat
+      await axios.post('http://localhost:8000/api/orders/checkout', payload, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+
+      // 3. Cetak struk dan bersihkan layar jika sukses
+      window.print();
+      setTimeout(() => {
+        setCart([]);
+        setShowPaymentModal(false);
+        setShowCashModal(false);
+        setCashTendered('');
+      }, 1000);
+
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Gagal menyimpan transaksi tunai ke database.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (

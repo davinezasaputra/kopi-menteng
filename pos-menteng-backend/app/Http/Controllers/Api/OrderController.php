@@ -122,8 +122,8 @@ class OrderController extends Controller
             ], 500);
         }
     }
-    public function history(Requsest $request){
-        $orders = \App\Models\Order::with(['items.product',])->orderBy('created_at', 'desc')->get();
+    public function history(Request $request){
+        $orders = Order::with(['items.product',])->orderBy('created_at', 'desc')->get();
         return response()->json([
             'status' => 'success',
             'data' => $orders

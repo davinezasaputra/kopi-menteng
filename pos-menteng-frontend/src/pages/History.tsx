@@ -6,15 +6,15 @@ interface OrderItem {
   id: number;
   product_id: number;
   quantity: number;
-  price: number;
+  unit_price: number;
   product?: {
     name: string;
   };
 }
 
 interface Order {
-  id: number;
-  total_price: number;
+  id: string;
+  total: number;
   payment_method: string;
   status: string;
   created_at: string;
@@ -54,7 +54,7 @@ export default function History() {
   };
 
   // Kalkulasi Cepat untuk Kartu Ringkasan
-  const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total_price), 0);
+  const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total), 0);
   const totalTransactions = orders.length;
 
   return (
@@ -135,7 +135,7 @@ export default function History() {
                           {order.payment_method}
                         </span>
                       </td>
-                      <td className="p-4 font-bold text-stone-800">Rp {Number(order.total_price).toLocaleString('id-ID')}</td>
+                      <td className="p-4 font-bold text-stone-800">Rp {Number(order.total).toLocaleString('id-ID')}</td>
                       <td className="p-4 text-center">
                         <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">Sukses</span>
                       </td>
@@ -173,9 +173,9 @@ export default function History() {
                   <div key={item.id} className="flex justify-between items-center">
                     <div>
                       <p className="font-bold text-stone-700">{item.product?.name || 'Produk Dihapus'}</p>
-                      <p className="text-xs text-stone-500">{item.quantity} x Rp {Number(item.price).toLocaleString('id-ID')}</p>
+                      <p className="text-xs text-stone-500">{item.quantity} x Rp {Number(item.unit_price).toLocaleString('id-ID')}</p>
                     </div>
-                    <p className="font-bold text-stone-800">Rp {(item.quantity * item.price).toLocaleString('id-ID')}</p>
+                    <p className="font-bold text-stone-800">Rp {(item.quantity * item.unit_price).toLocaleString('id-ID')}</p>
                   </div>
                 ))
               ) : (
@@ -185,7 +185,7 @@ export default function History() {
 
             <div className="border-t border-stone-200 pt-4 flex justify-between items-center text-lg font-black text-amber-700">
               <span>TOTAL</span>
-              <span>Rp {Number(selectedOrder.total_price).toLocaleString('id-ID')}</span>
+              <span>Rp {Number(selectedOrder.total).toLocaleString('id-ID')}</span>
             </div>
             
             <button onClick={() => setSelectedOrder(null)} className="mt-8 w-full rounded-xl bg-stone-100 py-3 font-bold text-stone-600 hover:bg-stone-200 transition">

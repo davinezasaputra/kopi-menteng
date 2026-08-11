@@ -26,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function(){
     Route::get('/orders/history', [OrderController::class, 'history']);
     Route::post('/orders/checkout', [OrderController::class, 'checkout' ]);
     
+    
 });
 
 Route::get('/user', function (Request $request) {
