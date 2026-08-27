@@ -49,6 +49,8 @@ export default function Pos() {
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [startingCash, setStartingCash] = useState('');
   const [shiftProcessing, setShiftProcessing] = useState(false);
+
+  // State Tutup Shift
   const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
   const [endingCash, setEndingCash] = useState('');
 
@@ -126,9 +128,10 @@ export default function Pos() {
 
   const removeFromCart = (id: string) => setCart((prev) => prev.filter((item) => item.id !== id));
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = subtotal * 0.11;
-  const total = subtotal + tax;
+// --- KALKULASI PAJAK INKLUSIF (HARGA SUDAH TERMASUK PAJAK) ---
+  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const basePrice = total / 1.11; // DPP (Dasar Pengenaan Pajak)
+  const tax = total - basePrice;  // Potongan PPN untuk laporan negara
   const changeAmount = Number(cashTendered) - total;
 
   const handleLogout = () => {
@@ -350,14 +353,64 @@ export default function Pos() {
           )}
         </div>
         <div className="border-t border-stone-200 bg-stone-50 p-6">
-          <div className="mb-2 flex justify-between text-sm text-stone-500"><span>Subtotal</span><span>Rp {subtotal.toLocaleString('id-ID')}</span></div>
-          <div className="mb-4 flex justify-between text-sm text-stone-500"><span>Pajak (11%)</span><span>Rp {tax.toLocaleString('id-ID')}</span></div>
-          <div className="mb-6 flex justify-between text-2xl font-black text-stone-800"><span>Total</span><span>Rp {total.toLocaleString('id-ID')}</span></div>
+          <div className="mb-2 flex justify-between text-sm text-stone-500">
+            <span>DPP (Dasar Harga)</span><span>Rp {Math.round(basePrice).toLocaleString('id-ID')}</span>
+          </div>
+          <div className="mb-4 flex justify-between text-sm text-stone-500">
+            <span>Termasuk PPN 11%</span><span>Rp {Math.round(tax).toLocaleString('id-ID')}</span>
+          </div>
+          <div className="mb-6 flex justify-between text-2xl font-black text-stone-800">
+            <span>Total Bayar</span><span>Rp {total.toLocaleString('id-ID')}</span>
+          </div>
           <button onClick={triggerPayment} disabled={cart.length === 0} className={`w-full rounded-2xl py-4 text-lg font-bold text-white transition-all ${cart.length === 0 ? 'cursor-not-allowed bg-stone-300' : 'bg-amber-700 shadow-lg hover:bg-amber-800 active:scale-95'}`}>
             Bayar Pesanan
           </button>
         </div>
       </div>
+
+      {/* ================= MODAL BUKA SHIFT ================= */}
+      {showShiftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm print:hidden">
+          <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
+            <h2 className="mb-2 text-2xl font-bold text-stone-800">Buka Shift Kasir</h2>
+            <form onSubmit={handleOpenShift}>
+              <div className="my-6 relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-stone-400">Rp</span>
+                <input type="number" value={startingCash} onChange={(e) => setStartingCash(e.target.value)} className="w-full rounded-xl border border-stone-300 bg-stone-50 p-4 pl-12 text-xl font-bold text-stone-800" placeholder="Modal awal..." required min="0" />
+              </div>
+              <div className="flex gap-4">
+                <button type="button" onClick={() => setShowShiftModal(false)} className="w-1/3 rounded-xl bg-stone-100 py-3 font-bold text-stone-500">Batal</button>
+                <button type="submit" disabled={shiftProcessing || !startingCash} className="w-2/3 rounded-xl bg-amber-700 py-3 font-bold text-white shadow-lg disabled:opacity-50">
+                  {shiftProcessing ? 'Membuka...' : 'Buka Laci'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL TUTUP SHIFT ================= */}
+      {showCloseShiftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm print:hidden">
+          <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
+            <h2 className="mb-2 text-2xl font-bold text-red-600">Tutup Shift (End of Day)</h2>
+            <p className="mb-6 text-sm text-stone-500">Hitung dan masukkan total uang fisik yang ada di dalam laci kasir saat ini.</p>
+            <form onSubmit={handleCloseShift}>
+              <div className="my-6 relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-stone-400">Rp</span>
+                <input type="number" value={endingCash} onChange={(e) => setEndingCash(e.target.value)} className="w-full rounded-xl border border-stone-300 bg-stone-50 p-4 pl-12 text-xl font-bold text-stone-800 focus:border-red-500 focus:ring-2 focus:ring-red-200" placeholder="Uang fisik akhir..." required min="0" />
+              </div>
+              <div className="flex gap-4">
+                <button type="button" onClick={() => setShowCloseShiftModal(false)} className="w-1/3 rounded-xl bg-stone-100 py-3 font-bold text-stone-500">Batal</button>
+                <button type="submit" disabled={shiftProcessing || !endingCash} className="w-2/3 rounded-xl bg-red-600 py-3 font-bold text-white shadow-lg disabled:opacity-50 hover:bg-red-700">
+                  {shiftProcessing ? 'Memproses...' : 'Tutup Shift'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
 
       {/* ================= MODAL RIWAYAT & CETAK ULANG ================= */}
       {showHistoryModal && (
@@ -440,7 +493,13 @@ export default function Pos() {
                       ))}
                     </div>
                     <div className="my-4 border-b-2 border-dashed border-gray-400"></div>
-                    <div className="mt-2 flex justify-between text-lg font-bold">
+                    <div className="flex justify-between mb-1">
+                      <span>Harga Dasar (DPP)</span><span>{Math.round(basePrice).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between mb-1">
+                      <span>Inc. PPN (11%)</span><span>{Math.round(tax).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="mt-2 flex justify-between border-t border-gray-400 pt-2 text-lg font-bold">
                       <span>TOTAL</span><span>Rp {total.toLocaleString('id-ID')}</span>
                     </div>
                     {isQrisReceipt ? (
