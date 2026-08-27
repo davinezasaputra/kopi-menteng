@@ -35,6 +35,7 @@ Route::middleware('auth:sanctum')->group(function(){
     Route::put('/raw-materials/{id}', [RawMaterialController::class, 'update']);
     Route::delete('/raw-materials/{id}', [RawMaterialController::class, 'destroy']);
     Route::put('/raw-materials/{id}/toggle-request', [RawMaterialController::class, 'toggleShoppingRequest']);
+    Route::post('/raw-materials/{id}/restock', [RawMaterialController::class, 'restock']);
 
 });
 

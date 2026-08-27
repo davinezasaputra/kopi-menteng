@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+const [showRestockModal, setShowRestockModal] = useState(false);
+const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
+const [restockQty, setRestockQty] = useState('');
+const [restockCost, setRestockCost] = useState('');
+const [receiptFile, setReceiptFile] = useState<File | null>(null);
+
 interface RawMaterial {
   id: string;
   name: string;
@@ -41,6 +47,35 @@ export default function RawMaterials() {
       console.error("Gagal mengambil data bahan baku", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRestockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = localStorage.getItem('token');
+    
+    // Gunakan FormData karena kita mengirim file gambar
+    const formData = new FormData();
+    formData.append('quantity_added', restockQty);
+    formData.append('total_cost', restockCost);
+    if (receiptFile) {
+      formData.append('receipt_image', receiptFile);
+    }
+
+    try {
+      await axios.post(`http://localhost:8000/api/raw-materials/${selectedMaterial.id}/restock`, formData, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data' 
+        }
+      });
+      setShowRestockModal(false);
+      setRestockQty('');
+      setRestockCost('');
+      setReceiptFile(null);
+      fetchMaterials(); // Refresh tabel
+    } catch (error) {
+      alert('Gagal memperbarui stok dan HPP.');
     }
   };
 
@@ -228,6 +263,10 @@ export default function RawMaterials() {
                       </td>
                       <td className="p-4 flex justify-center gap-2">
                         <button onClick={() => openEditModal(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition" title="Edit / Restock">✏️</button>
+                        <button onClick={() => {
+                          setSelectedMaterial(item);
+                          setShowRestockModal(true);
+                        }} className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition" title="Restock">📦</button>
                         <button onClick={() => handleDelete(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition" title="Hapus">🗑️</button>
                       </td>
                     </tr>
@@ -275,6 +314,35 @@ export default function RawMaterials() {
               <div className="mt-6 flex gap-4 pt-4 border-t border-stone-100">
                 <button type="button" onClick={() => setShowModal(false)} className="w-1/3 rounded-xl bg-stone-100 py-3 font-bold text-stone-500 hover:bg-stone-200">Batal</button>
                 <button type="submit" className="w-2/3 rounded-xl bg-amber-700 py-3 font-bold text-white hover:bg-amber-800 shadow-md">Simpan Data</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showRestockModal && selectedMaterial && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
+            <h2 className="text-xl font-bold text-stone-800 mb-2">Restock: {selectedMaterial.name}</h2>
+            <p className="text-sm text-stone-500 mb-6">Masukkan data belanja untuk memperbarui HPP otomatis.</p>
+            
+            <form onSubmit={handleRestockSubmit} className="space-y-4">
+              <div>
+                <label className="text-sm font-bold text-stone-600 block mb-1">Kuantitas Masuk ({selectedMaterial.unit})</label>
+                <input type="number" value={restockQty} onChange={e => setRestockQty(e.target.value)} required className="w-full border rounded-lg p-3 bg-stone-50" />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-stone-600 block mb-1">Total Harga Beli (Rp)</label>
+                <input type="number" value={restockCost} onChange={e => setRestockCost(e.target.value)} required className="w-full border rounded-lg p-3 bg-stone-50" />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-stone-600 block mb-1">Foto Struk (Opsional)</label>
+                <input type="file" accept="image/*" onChange={e => setReceiptFile(e.target.files?.[0] || null)} className="w-full border rounded-lg p-2 bg-stone-50 text-sm" />
+              </div>
+              
+              <div className="flex gap-4 mt-6">
+                <button type="button" onClick={() => setShowRestockModal(false)} className="w-1/3 py-3 rounded-lg bg-stone-100 font-bold text-stone-600">Batal</button>
+                <button type="submit" className="w-2/3 py-3 rounded-lg bg-amber-700 font-bold text-white shadow-lg">Simpan & Hitung HPP</button>
               </div>
             </form>
           </div>

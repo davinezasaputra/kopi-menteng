@@ -24,6 +24,7 @@ class OrderController extends Controller
             'data' => $orders
         ]);
     }
+
     public function checkout(Request $request)
     {
         $user = $request->user();
@@ -46,11 +47,11 @@ class OrderController extends Controller
         try {
             DB::beginTransaction();
 
-            $subtotal = 0;
+            $subtotal = 0; // Total dari harga menu (sudah termasuk PPN)
+            $totalCogs = 0; // Modal (HPP)
             $processedItems = [];
 
             foreach ($validated['items'] as $item) {
-                // TAMBAHKAN with('rawMaterials') agar resep ikut dipanggil
                 $product = Product::lockForUpdate()->with('rawMaterials')->findOrFail($item['product_id']);
 
                 if ($product->stock < $item['quantity']) {
@@ -59,6 +60,24 @@ class OrderController extends Controller
 
                 $itemSubtotal = $product->price * $item['quantity'];
                 $subtotal += $itemSubtotal;
+                $itemCogs = 0; // Modal per item pesanan
+
+                $product->decrement('stock', $item['quantity']);
+                
+                foreach ($product->rawMaterials as $material) {
+                    $totalMaterialNeeded = $material->pivot->quantity_needed * $item['quantity'];
+                    
+                    if ($material->stock < $totalMaterialNeeded) {
+                        throw new \Exception("Bahan baku '{$material->name}' habis!");
+                    }
+                    
+                    $material->decrement('stock', $totalMaterialNeeded);
+                    
+                    // Kalkulasi HPP: Kebutuhan bahan x Harga Rata-rata Satuan
+                    $itemCogs += ($totalMaterialNeeded * $material->price_per_unit);
+                }
+
+                $totalCogs += $itemCogs; // Akumulasi modal ke total keranjang
 
                 $processedItems[] = [
                     'product_id' => $product->id,
@@ -66,26 +85,26 @@ class OrderController extends Controller
                     'unit_price' => $product->price,
                     'subtotal' => $itemSubtotal,
                 ];
-                $product->decrement('stock', $item['quantity']);
-                foreach ($product->rawMaterials as $material) {
-                    
-                    $totalMaterialNeeded = $material->pivot->quantity_needed * $item['quantity'];
-                    $material->decrement('stock', $totalMaterialNeeded);
-                }
             }
 
-            $tax = $subtotal * 0.11;
-            $total = $subtotal + $tax;
+            // LOGIKA PAJAK INKLUSIF & LABA BERSIH
+            $total = $subtotal; // Harga akhir mutlak sama dengan harga di menu
+            $basePrice = $total / 1.11; // DPP (Dasar Pengenaan Pajak)
+            $tax = $total - $basePrice; // Potongan PPN
+            $netProfit = $basePrice - $totalCogs; // Laba Bersih = DPP - Modal
+
             $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
 
             $order = Order::create([
                 'user_id' => $user->id,
                 'shift_id' => $activeShift->id,
                 'invoice_number' => $invoiceNumber,
-                'subtotal' => $subtotal,
+                'subtotal' => $basePrice, // Simpan harga bersih tanpa pajak
                 'tax' => $tax,
                 'discount' => 0, 
-                'total' => $total,
+                'total' => $total, // Harga yang dibayar pelanggan
+                'total_cogs' => $totalCogs, // Rekaman HPP
+                'net_profit' => $netProfit, // Rekaman Laba Bersih
                 'payment_method' => $validated['payment_method'],
                 'status' => $validated['payment_method'] === 'cash' ? 'paid' : 'pending',
             ]);
@@ -137,8 +156,10 @@ class OrderController extends Controller
             ], 500);
         }
     }
-    public function history(Request $request){
-        $orders = Order::with(['items.product',])->orderBy('created_at', 'desc')->get();
+
+    public function history(Request $request)
+    {
+        $orders = Order::with(['items.product'])->orderBy('created_at', 'desc')->get();
         return response()->json([
             'status' => 'success',
             'data' => $orders

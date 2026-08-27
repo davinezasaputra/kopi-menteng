@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\RawMaterial;
+use App\Models\RestockHistory;
 use Illuminate\Http\Request;
 
 class RawMaterialController extends Controller
@@ -83,5 +84,40 @@ class RawMaterialController extends Controller
             'data' => $material
         ]);
         }
+    public function restock(Request $request, $id)
+    {
+            $request->validate([
+                'quantity_added' => 'required|numeric|min:1',
+                'total_cost' => 'required|numeric|min:0',
+                'receipt_image' => 'nullable|image|max:2048' // Maks 2MB
+            ]);
+
+            $material = RawMaterial::findOrFail($id);
+            $imagePath = null;
+
+            if ($request->hasFile('receipt_image')) {
+                $imagePath = $request->file('receipt_image')->store('receipts', 'public');
+            }
+
+            // Hitung rata-rata harga satuan baru (Moving Average)
+            $oldTotalValue = $material->stock * $material->price_per_unit;
+            $newTotalValue = $oldTotalValue + $request->total_cost;
+            $newStock = $material->stock + $request->quantity_added;
+            
+            $material->price_per_unit = $newTotalValue / $newStock;
+            $material->stock = $newStock;
+            $material->is_shopping_requested = false; // Otomatis hilang dari daftar belanja
+            $material->save();
+
+            RestockHistory::create([
+                'raw_material_id' => $material->id,
+                'quantity_added' => $request->quantity_added,
+                'total_cost' => $request->total_cost,
+                'receipt_image' => $imagePath,
+                'restocked_by' => auth()->user()->name
+            ]);
+
+            return response()->json(['status' => 'success', 'message' => 'Stok diperbarui']);
     }
+}
 
