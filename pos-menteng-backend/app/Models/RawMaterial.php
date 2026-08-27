@@ -11,4 +11,7 @@ class RawMaterial extends Model
     use HasFactory, HasUuids;
 
     protected $guarded = [];
+    protected $casts = [
+        'is_requested' => 'boolean',
+    ];
 }

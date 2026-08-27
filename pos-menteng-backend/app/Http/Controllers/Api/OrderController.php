@@ -11,9 +11,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Midtrans\Config;
 use Midtrans\Snap;
+use Carbon\Carbon;
 
 class OrderController extends Controller
 {
+    public function index(Request $request)
+    {
+        $today = Carbon::today();
+        $orders = Order::with('items.product')->whereDate('created_at', $today)->orderBy('created_at', 'desc')->get();
+        return response()->json([
+            'status' => 'success',
+            'data' => $orders
+        ]);
+    }
     public function checkout(Request $request)
     {
         $user = $request->user();
@@ -40,7 +50,8 @@ class OrderController extends Controller
             $processedItems = [];
 
             foreach ($validated['items'] as $item) {
-                $product = Product::lockForUpdate()->findOrFail($item['product_id']);
+                // TAMBAHKAN with('rawMaterials') agar resep ikut dipanggil
+                $product = Product::lockForUpdate()->with('rawMaterials')->findOrFail($item['product_id']);
 
                 if ($product->stock < $item['quantity']) {
                     throw new \Exception("Stok {$product->name} tidak cukup. Sisa: {$product->stock}");
@@ -55,8 +66,12 @@ class OrderController extends Controller
                     'unit_price' => $product->price,
                     'subtotal' => $itemSubtotal,
                 ];
-
                 $product->decrement('stock', $item['quantity']);
+                foreach ($product->rawMaterials as $material) {
+                    
+                    $totalMaterialNeeded = $material->pivot->quantity_needed * $item['quantity'];
+                    $material->decrement('stock', $totalMaterialNeeded);
+                }
             }
 
             $tax = $subtotal * 0.11;

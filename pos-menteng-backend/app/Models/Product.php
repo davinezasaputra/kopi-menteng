@@ -33,4 +33,10 @@ class Product extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function rawMaterials()
+    {
+        return $this->belongsToMany(RawMaterial::class, 'product_recipes')
+                    ->withPivot('quantity_needed')
+                    ->withTimestamps();
+    }
 }

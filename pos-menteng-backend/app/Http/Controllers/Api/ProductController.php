@@ -9,13 +9,14 @@ use Illuminate\Validation\Validator;
 class ProductController extends Controller
 {
     public function index(){
-        $products = Product::with('category')->where('is_active', true)->get();
+        $products = Product::with(['category', 'rawMaterials'])->where('is_active', true)->get();
 
         return response()->json([
             'status'=>'success',
             'message'=>'Berhasil Menambahkan Produk',
             'data' => $products
         ], 200);
+            
     }
     public function store(Request $request)
 {
@@ -98,5 +99,32 @@ class ProductController extends Controller
                 'message' => 'Gagal menghapus! Produk ini tidak bisa dihapus karena sudah tercatat dalam riwayat transaksi kasir.'
             ], 400);
         }
+    }
+    public function syncRecipe(Request $request, $id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json(['status' => 'error', 'message' => 'Produk tidak ditemukan'], 404);
+        }
+
+        $request->validate([
+            'recipe' => 'array',
+            'recipe.*.raw_material_id' => 'required|exists:raw_materials,id',
+            'recipe.*.quantity_needed' => 'required|numeric|min:0.01'
+        ]);
+
+        $syncData = [];
+        if ($request->has('recipe')) {
+            foreach ($request->recipe as $item) {
+                $syncData[$item['raw_material_id']] = ['quantity_needed' => $item['quantity_needed']];
+            }
+        }
+        $product->rawMaterials()->sync($syncData);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Resep berhasil diperbarui'
+        ]);
     }
 }
