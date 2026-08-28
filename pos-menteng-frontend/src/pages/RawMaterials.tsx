@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import AdminSidebar from '../components/AdminSidebar';
 
 
@@ -78,7 +79,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
       setReceiptFile(null);
       fetchMaterials(); // Refresh tabel
     } catch (error) {
-      alert('Gagal memperbarui stok dan HPP.');
+      toast.error('Gagal memperbarui stok dan HPP.');
     }
   };
 
@@ -105,7 +106,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
       setShowModal(false);
       fetchMaterials();
     } catch (error) {
-      alert('Gagal menyimpan data.');
+      toast.error('Gagal menyimpan data.');
     }
   };
 
@@ -118,7 +119,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
       });
       fetchMaterials();
     } catch (error) {
-      alert('Gagal menghapus.');
+      toast.error('Gagal menghapus bahan.');
     }
   };
 
@@ -151,7 +152,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
           item.id === id ? { ...item, is_shopping_requested: !item.is_shopping_requested } : item
         )
       );
-      alert(error.response?.data?.message || 'Gagal menyinkronkan status belanja ke server.');
+      toast.error(error.response?.data?.message || 'Gagal menyinkronkan status belanja ke server.');
       console.error(error);
     }
   };

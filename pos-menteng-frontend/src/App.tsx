@@ -1,4 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import axios from 'axios';
 import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
 import Pos from './pages/Pos';
@@ -7,6 +10,27 @@ import History from './pages/History';
 import RawMaterials from './pages/RawMaterials';
 import Dashboard from './pages/Dashboard';
 
+const AxiosInterceptor = ({ children }: { children: React.ReactNode }) => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        // Jika server menolak dengan 401 Unauthorized, hapus token & usir ke luar
+        if (error.response?.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/', { replace: true });
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, [navigate]);
+
+  return <>{children}</>;
+};
 
 interface ProtectedRouteProps {
  children: React.ReactNode;
@@ -32,6 +56,9 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 function App() {
   return (
     <BrowserRouter>
+    <Toaster position="top-center" reverseOrder={false} />
+
+    <AxiosInterceptor>
       <Routes>
 
         <Route path="/" element={<Login />} />
@@ -44,6 +71,7 @@ function App() {
         <Route path="/raw-materials" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <RawMaterials /> </ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <Dashboard/> </ProtectedRoute>} />
       </Routes>
+      </AxiosInterceptor>
     </BrowserRouter>
   );
 }

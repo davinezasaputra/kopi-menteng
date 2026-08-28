@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import axios from 'axios';
 
 // --- INTERFACES ---
@@ -170,7 +171,7 @@ export default function Pos() {
       localStorage.removeItem('isShiftOpen');
       setShowShiftModal(false);
     } catch (error: any) {
-      alert('Gagal buka shift atau shift masih aktif.');
+      toast.error('Gagal buka shift atau shift masih aktif.');
     } finally {
       setShiftProcessing(false);
     }
@@ -187,9 +188,9 @@ export default function Pos() {
       localStorage.removeItem('isShiftOpen');
       setShowCloseShiftModal(false);
       setEndingCash('');
-      alert('Shift berhasil ditutup!');
+      toast.success('Shift berhasil ditutup!');
     } catch (error) {
-      alert('Gagal menutup shift.');
+      toast.error('Gagal menutup shift.');
     } finally {
       setShiftProcessing(false);
     }
@@ -226,7 +227,7 @@ export default function Pos() {
         window.location.href = response.data.payment_url;
       }
     } catch (error) {
-      alert('Gagal Checkout.');
+      toast.error('Gagal Checkout.');
     } finally {
       setIsProcessing(false);
     }
@@ -234,18 +235,24 @@ export default function Pos() {
 
   const handleConfirmCashPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (Number(cashTendered) < total) return;
+    if (Number(cashTendered) < total){
+      toast.error('Uang tunai tidak cukup untuk membayar total pesanan.');
+      return;
+    }
     setIsProcessing(true);
+    const toastId = toast.loading('Memprosses Transasksi...');
     try {
       const payload = { payment_method: 'cash', items: cart.map(item => ({ product_id: item.id, quantity: item.quantity })) };
       await axios.post('http://localhost:8000/api/orders/checkout', payload, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
+
+      toast.success('Transaksi Berhasil', {id: toastId});
       await fetchProducts();
       setIsQrisReceipt(false);
       executePrintSequence();
     } catch (error) {
-      alert('Gagal menyimpan transaksi.');
+      toast.error('Gagal menyimpan transaksi.');
     } finally {
       setIsProcessing(false);
     }
@@ -313,7 +320,7 @@ export default function Pos() {
           {products.length === 0 ? (
             <div className="text-stone-500">Memuat data produk...</div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4 pb-20">
               {products.map((product) => {
                 const availableStock = calculateEffectiveStock(product);
                 const isOutOfStock = availableStock <= 0;

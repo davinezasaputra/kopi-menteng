@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import AdminSidebar from '../components/AdminSidebar';
 
 interface RawMaterialPivot {
@@ -152,7 +153,7 @@ export default function Inventory() {
       setShowModal(false);
       fetchProducts();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Gagal menyimpan produk.');
+      toast.error(error.response?.data?.message || 'Gagal menyimpan produk.');
     }
   };
 
@@ -163,7 +164,7 @@ export default function Inventory() {
       await axios.delete(`http://localhost:8000/api/products/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
       fetchProducts();
     } catch (error) {
-      alert('Gagal menghapus produk.');
+      toast.error('Gagal menghapus produk.');
     }
   };
 
@@ -216,7 +217,7 @@ export default function Inventory() {
     // Validasi input kosong
     const isValid = recipeItems.every(item => item.raw_material_id !== '' && item.quantity_needed !== '');
     if (!isValid) {
-      alert("Harap lengkapi pilihan bahan baku dan jumlahnya, atau hapus baris yang kosong.");
+      toast.error("Harap lengkapi pilihan bahan baku dan jumlahnya, atau hapus baris yang kosong.");
       return;
     }
 
@@ -231,11 +232,11 @@ export default function Inventory() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      alert("Resep berhasil disimpan! Bahan baku akan otomatis terpotong saat pesanan dibuat.");
+      toast.success("Resep berhasil disimpan! Bahan baku akan otomatis terpotong saat pesanan dibuat.");
       setShowRecipeModal(false);
       fetchProducts(); // Refresh agar data terbaru masuk
     } catch (error) {
-      alert("Gagal menyimpan resep.");
+      toast.error("Gagal menyimpan resep.");
     }
   };
 
