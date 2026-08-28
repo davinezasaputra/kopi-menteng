@@ -152,11 +152,25 @@ export default function Pos() {
   const tax = total - basePrice;  // Potongan PPN untuk laporan negara
   const changeAmount = Number(cashTendered) - total;
 
-  const handleLogout = () => {
+  const handleLogout = async() => {
+    const token = localStorage.getItem('token');
+    const toastId = toast.loading('Menutup sesi kasir ...');
+
+    if (token) {
+        try{
+            await axios.post('http://localhost:8000/api/logout', {}, {
+                headers:{ 'Authorization' : `Bearer ${token}` }
+            });
+        } catch (error) {
+            console.error ('Gagal menghapus token dari server', error);
+        }
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('isShiftOpen');
     setIsShiftOpen(false);
+
+    toast.success('Sesi ditutup', {id : toastId})
     navigate('/');
   };
 

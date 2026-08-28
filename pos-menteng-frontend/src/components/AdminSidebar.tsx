@@ -1,4 +1,6 @@
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import toast from 'react-hot-toast';
 
 type AdminSidebarProps = {
   activePage?: 'dashboard' | 'pos' | 'inventory' | 'raw-materials' | 'history';
@@ -16,9 +18,23 @@ export default function AdminSidebar({ activePage = 'dashboard' }: AdminSidebarP
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const handleLogout = async() => {
+    const token = localStorage.getItem('token');
+    const toastId = toast.loading('Logoutting...');
+
+    if (token) {
+        try{
+            await axios.post('http://localhost:8000/api/logout', {}, {
+                headers:{ 'Authorization' : `Bearer ${token}` }
+            });
+        } catch (error) {
+            console.error ('Gagal menghapus token dari server', error);
+        }
+    }
+
+    localStorage.removeItem ('token');
+    localStorage.removeItem ('user');
+    toast.success ('Berhasil Logout!', {id: toastId});
     navigate('/admin-login');
   };
 
