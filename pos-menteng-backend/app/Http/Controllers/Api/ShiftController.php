@@ -9,6 +9,18 @@ use Illuminate\Http\Request;
 
 class ShiftController extends Controller
 {
+    public function status(Request $request)
+    {
+        $user = $request->user();
+        $activeShift = Shift::where('user_id', $user->id)->where('status', 'open')->first();
+
+        return response()->json([
+            'status' => 'success',
+            'is_open' => (bool) $activeShift,
+            'data' => $activeShift,
+        ]);
+    }
+
     public function open(Request $request){
         $user = $request->user();
         $activeShift = Shift::where('user_id', $user->id)->where('status', 'open')->first();

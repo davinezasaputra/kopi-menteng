@@ -16,6 +16,7 @@ Route::post('/midtrans/webhook', [PaymentController::class, 'handleWebhook']);
 
 Route::middleware('auth:sanctum')->group(function(){
     Route::get('/me', function(Request $request) {return $request->user();});
+    Route::get('/shifts/status', [ShiftController::class, 'status']);
     Route::post('/shifts/open', [ShiftController::class, 'open']);
     Route::post('/shifts/close', [ShiftController::class, 'close']);
 

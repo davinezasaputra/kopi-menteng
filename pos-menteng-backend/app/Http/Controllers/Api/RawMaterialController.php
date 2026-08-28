@@ -106,7 +106,7 @@ class RawMaterialController extends Controller
             
             $material->price_per_unit = $newTotalValue / $newStock;
             $material->stock = $newStock;
-            $material->is_shopping_requested = false; // Otomatis hilang dari daftar belanja
+            $material->is_requested = false; // Otomatis hilang dari daftar belanja
             $material->save();
 
             RestockHistory::create([

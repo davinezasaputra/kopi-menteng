@@ -45,10 +45,25 @@ export default function Pos() {
   const [user, setUser] = useState<{ name: string } | null>(null);
   
   // State Shift
-  const [isShiftOpen, setIsShiftOpen] = useState(() => localStorage.getItem('isShiftOpen') === 'true');
+  const [isShiftOpen, setIsShiftOpen] = useState(false);
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [startingCash, setStartingCash] = useState('');
   const [shiftProcessing, setShiftProcessing] = useState(false);
+
+  const fetchShiftStatus = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const response = await axios.get('http://localhost:8000/api/shifts/status', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setIsShiftOpen(Boolean(response.data.is_open));
+    } catch (error) {
+      console.error('Gagal mengambil status shift:', error);
+      setIsShiftOpen(false);
+    }
+  };
 
   // State Tutup Shift
   const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
@@ -102,6 +117,8 @@ export default function Pos() {
     }
     if (userData && userData !== 'undefined') setUser(JSON.parse(userData));
 
+    fetchShiftStatus();
+
     // Deteksi Kembalian Midtrans
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get('order_id') && searchParams.get('status_code') === '200') {
@@ -138,6 +155,7 @@ export default function Pos() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('isShiftOpen');
+    setIsShiftOpen(false);
     navigate('/');
   };
 
@@ -149,7 +167,7 @@ export default function Pos() {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       setIsShiftOpen(true);
-      localStorage.setItem('isShiftOpen', 'true');
+      localStorage.removeItem('isShiftOpen');
       setShowShiftModal(false);
     } catch (error: any) {
       alert('Gagal buka shift atau shift masih aktif.');

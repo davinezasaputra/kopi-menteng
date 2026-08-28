@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import AdminSidebar from '../components/AdminSidebar';
 
 interface RawMaterialPivot {
   id: string;
@@ -240,28 +241,7 @@ export default function Inventory() {
 
   return (
     <div className="flex h-screen w-full bg-stone-50 font-sans text-stone-800">
-      
-      {/* SIDEBAR */}
-      <div className="w-64 bg-stone-900 text-stone-300 flex flex-col">
-        <div className="p-6 border-b border-stone-800 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-700 font-bold text-white text-xs">KM</div>
-          <span className="font-bold text-white tracking-wide">Backoffice</span>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <button onClick={() => navigate('/pos')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-stone-800 hover:text-white transition text-left">
-            <span>🛒</span> Kasir (POS)
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-700/20 text-amber-500 font-medium transition text-left">
-            <span>📦</span> Data Produk
-          </button>
-          <button onClick={() => navigate('/raw-materials')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-stone-800 hover:text-white transition text-left">
-            <span>🫙</span> Bahan Baku
-          </button>
-          <button onClick={() => navigate('/history')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-stone-800 hover:text-white transition text-left">
-            <span>🧾</span> Riwayat & Laporan
-          </button>
-        </nav>
-      </div>
+      <AdminSidebar activePage="inventory" />
 
       {/* KONTEN UTAMA */}
       <div className="flex-1 flex flex-col overflow-hidden">

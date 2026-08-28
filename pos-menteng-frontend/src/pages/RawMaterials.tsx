@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import AdminSidebar from '../components/AdminSidebar';
 
-const [showRestockModal, setShowRestockModal] = useState(false);
-const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
-const [restockQty, setRestockQty] = useState('');
-const [restockCost, setRestockCost] = useState('');
-const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
 interface RawMaterial {
   id: string;
@@ -18,6 +14,13 @@ interface RawMaterial {
 }
 
 export default function RawMaterials() {
+
+  
+const [showRestockModal, setShowRestockModal] = useState(false);
+const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
+const [restockQty, setRestockQty] = useState('');
+const [restockCost, setRestockCost] = useState('');
+const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const navigate = useNavigate();
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -177,28 +180,7 @@ export default function RawMaterials() {
 
   return (
     <div className="flex h-screen w-full bg-stone-50 font-sans text-stone-800">
-      
-      {/* SIDEBAR */}
-      <div className="w-64 bg-stone-900 text-stone-300 flex flex-col">
-        <div className="p-6 border-b border-stone-800 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-700 font-bold text-white text-xs">KM</div>
-          <span className="font-bold text-white tracking-wide">Backoffice</span>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <button onClick={() => navigate('/pos')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-stone-800 hover:text-white transition text-left">
-            <span>🛒</span> Kasir (POS)
-          </button>
-          <button onClick={() => navigate('/inventory')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-stone-800 hover:text-white transition text-left">
-            <span>📦</span> Data Produk
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-700/20 text-amber-500 font-medium transition text-left">
-            <span>🫙</span> Bahan Baku
-          </button>
-          <button onClick={() => navigate('/history')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-stone-800 hover:text-white transition text-left">
-            <span>🧾</span> Riwayat & Laporan
-          </button>
-        </nav>
-      </div>
+      <AdminSidebar activePage="raw-materials" />
 
       {/* KONTEN UTAMA */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -262,12 +244,16 @@ export default function RawMaterials() {
                         {item.stock} <span className="text-sm font-medium text-stone-400">{item.unit}</span>
                       </td>
                       <td className="p-4 flex justify-center gap-2">
-                        <button onClick={() => openEditModal(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition" title="Edit / Restock">✏️</button>
+                        {activeTab !== 'shopping' && (
+                          <button onClick={() => openEditModal(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition" title="Edit">✏️</button>
+                        )}
                         <button onClick={() => {
                           setSelectedMaterial(item);
                           setShowRestockModal(true);
                         }} className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition" title="Restock">📦</button>
-                        <button onClick={() => handleDelete(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition" title="Hapus">🗑️</button>
+                        {activeTab !== 'shopping' && (
+                          <button onClick={() => handleDelete(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition" title="Hapus">🗑️</button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -282,7 +268,7 @@ export default function RawMaterials() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
-            <h2 className="mb-6 text-2xl font-bold text-stone-800">{isEditing ? 'Edit Bahan & Restock' : 'Input Bahan Baru'}</h2>
+            <h2 className="mb-6 text-2xl font-bold text-stone-800">{isEditing ? 'Edit Bahan' : 'Input Bahan Baru'}</h2>
             <form onSubmit={handleSave} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-stone-600 mb-1">Nama Bahan</label>

@@ -72,7 +72,7 @@ export default function Login() {
         </div>
         
         <div className="relative z-10 text-sm font-medium tracking-wide text-stone-400">
-          <p>Shift Laci: <span className="text-amber-500">TUTUP</span> &nbsp;|&nbsp; Versi 1.0.0</p>
+          <p> Versi 1.0.0</p>
         </div>
       </div>
 
