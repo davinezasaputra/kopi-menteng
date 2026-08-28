@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import axios from 'axios';
-import { formatNumberInput, parseNumberInput } from '../utils/numberFormat';
+import { formatNumberInput, parseNumberInput, formatRp } from '../utils/numberFormat';
 
 // --- INTERFACES ---
 interface Product {
@@ -45,6 +45,7 @@ export default function Pos() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [user, setUser] = useState<{ name: string } | null>(null);
+  
   
   // State Shift
   const [isShiftOpen, setIsShiftOpen] = useState(false);
@@ -89,6 +90,24 @@ export default function Pos() {
 
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>('dine_in');
   const [customerName, setCustomerName] = useState('');
+  // Taruh di bawah state customerName
+  const [searchPhone, setSearchPhone] = useState('');
+  const [member, setMember] = useState<any>(null);
+
+  const handleSearchMember = async () => {
+    if (!searchPhone) return;
+    const toastId = toast.loading('Mencari member...');
+    try {
+      const res = await axios.post('http://localhost:8000/api/customers/search', { phone: searchPhone }, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      setMember(res.data.data);
+      toast.success(`Member: ${res.data.data.name} (${res.data.data.tier})`, { id: toastId });
+    } catch (error) {
+      setMember(null);
+      toast.error('Nomor HP tidak ditemukan.', { id: toastId });
+    }
+  };
 
   const calculateEffectiveStock = (product: Product) => {
     let maxStock = product.stock;
@@ -151,9 +170,20 @@ export default function Pos() {
   const removeFromCart = (id: string) => setCart((prev) => prev.filter((item) => item.id !== id));
 
 // --- KALKULASI PAJAK INKLUSIF (HARGA SUDAH TERMASUK PAJAK) ---
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const basePrice = total / 1.11; // DPP (Dasar Pengenaan Pajak)
-  const tax = total - basePrice;  // Potongan PPN untuk laporan negara
+  // 1. Hitung total harga normal sesuai daftar menu
+  const rawSubtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  
+  // 2. Hitung Diskon dari harga normal
+  let discount = 0;
+  if (member?.tier === 'vip') discount = rawSubtotal * 0.10;
+  if (member?.tier === 'gold') discount = rawSubtotal * 0.05;
+  
+  // 3. Harga Mutlak yang Dibayar Pelanggan
+  const total = rawSubtotal - discount;
+
+  // 4. Pisahkan PPN untuk sekadar ditampilkan di layar (Inklusif 11%)
+  const basePrice = total / 1.11;
+  const tax = total - basePrice;
   const changeAmount = parseNumberInput(cashTendered) - total;
 
   const handleLogout = async() => {
@@ -236,12 +266,16 @@ export default function Pos() {
   const handleMidtransCheckout = async () => {
     setIsProcessing(true);
     try {
-      const payload = { payment_method: 'qris', order_type: orderType, customer_name: customerName, items: cart.map(item => ({ product_id: item.id, quantity: item.quantity })) };
+      const payload = { payment_method: 'qris', order_type: orderType,  customer_name: customerName, customer_id: member ? member.id : null, items: cart.map(item => ({ product_id: item.id, quantity: item.quantity })) };
       const response = await axios.post('http://localhost:8000/api/orders/checkout', payload, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       if (response.data.status === 'success') {
         localStorage.setItem('pending_qris_cart', JSON.stringify(cart));
+        // setMember(null);
+        // setSearchPhone('');
+        // setCustomerName('');
+        // setOrderType('dine_in');
         window.location.href = response.data.payment_url;
       }
     } catch (error) {
@@ -260,12 +294,16 @@ export default function Pos() {
     setIsProcessing(true);
     const toastId = toast.loading('Memprosses Transasksi...');
     try {
-      const payload = { payment_method: 'cash', order_type: orderType, customer_name: customerName, items: cart.map(item => ({ product_id: item.id, quantity: item.quantity })) };
+      const payload = { payment_method: 'cash', order_type: orderType, customer_name: customerName, customer_id: member ? member.id : null , items: cart.map(item => ({ product_id: item.id, quantity: item.quantity })) };
       await axios.post('http://localhost:8000/api/orders/checkout', payload, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
 
       toast.success('Transaksi Berhasil', {id: toastId});
+      // setMember(null);
+      // setSearchPhone('');
+      // setCustomerName('');
+      // setOrderType('dine_in');
       await fetchProducts();
       setIsQrisReceipt(false);
       executePrintSequence();
@@ -572,9 +610,11 @@ export default function Pos() {
                       ))}
                     </div>
                     <div className="mt-2 text-center border-2 border-black p-2">
-                    <p className="text-xl font-black">{orderType === 'dine_in' ? 'DINE-IN' : 'TAKEAWAY'}</p>
-                    <p className="text-2xl font-black">{customerName || 'TANPA NAMA'}</p>
-                  </div>
+                      <p className="text-xl font-black">{orderType === 'dine_in' ? 'DINE-IN' : 'TAKEAWAY'}</p>
+                      <p className="text-2xl font-black">
+                        {customerName ? (orderType === 'dine_in' ? `${customerName}` : customerName) : 'TANPA MEJA / NAMA'}
+                      </p>
+                    </div>
                     <div className="mt-8 border-t-2 border-dashed border-black pt-4 text-center text-sm font-bold">~ SIAPKAN PESANAN ~</div>
                   </div>
                 )}
@@ -583,18 +623,51 @@ export default function Pos() {
             {/* KANAN: PANEL KONTROL */}
             <div className="w-1/2 bg-white p-8 print:hidden flex flex-col justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-stone-800 mb-6">Pilih Pembayaran</h2>
-                <div className="mb-6 bg-stone-50 p-4 rounded-xl border border-stone-200">
-                <div className="flex gap-2 mb-4">
-                  <button onClick={() => setOrderType('dine_in')} className={`flex-1 py-2 rounded-lg font-bold text-sm border-2 transition ${orderType === 'dine_in' ? 'bg-amber-100 border-amber-500 text-amber-800' : 'bg-white border-stone-200 text-stone-500'}`}>Makan di Tempat</button>
-                  <button onClick={() => setOrderType('takeaway')} className={`flex-1 py-2 rounded-lg font-bold text-sm border-2 transition ${orderType === 'takeaway' ? 'bg-amber-100 border-amber-500 text-amber-800' : 'bg-white border-stone-200 text-stone-500'}`}>Bawa Pulang</button>
+                <div className="mb-4 bg-amber-50 p-4 rounded-xl border border-amber-200">
+                <label className="text-sm font-bold text-amber-800 block mb-2">Cari Member (Opsional)</label>
+                <div className="flex gap-2">
+                  <input type="text" value={searchPhone} onChange={e => setSearchPhone(e.target.value)} placeholder="08..." className="flex-1 p-2 rounded-lg border border-amber-300 outline-none" />
+                  <button onClick={handleSearchMember} className="bg-amber-600 text-white px-4 rounded-lg font-bold">Cari</button>
                 </div>
+                {member && (
+                  <div className="mt-3 text-sm text-amber-900 bg-amber-100 p-2 rounded-lg font-bold flex justify-between">
+                    <div>
+                    <span>👑 {member.name} ({member.tier})</span>
+                    <span className="text-green-700">- {formatRp(discount)}</span>
+                    </div>
+                    <button 
+                      onClick={() => { setMember(null); setSearchPhone(''); }} 
+                      className="text-red-500 hover:text-red-700 px-2 py-1 bg-red-100 hover:bg-red-200 rounded transition" title="Batalkan Member">✖</button>
+                  </div>
+                  
+                )}
+              </div>
+                <h2 className="text-2xl font-bold text-stone-800 mb-6">Pilih Pembayaran</h2>
+                <div className="mb-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
+                <div className="flex gap-2 mb-3">
+                  <button 
+                    type="button"
+                    onClick={() => setOrderType('dine_in')} 
+                    className={`flex-1 py-2 rounded-lg font-bold text-sm border-2 transition ${orderType === 'dine_in' ? 'bg-amber-100 border-amber-500 text-amber-800' : 'bg-white border-stone-200 text-stone-500'}`}
+                  >
+                    Makan di Tempat
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setOrderType('takeaway')} 
+                    className={`flex-1 py-2 rounded-lg font-bold text-sm border-2 transition ${orderType === 'takeaway' ? 'bg-amber-100 border-amber-500 text-amber-800' : 'bg-white border-stone-200 text-stone-500'}`}
+                  >
+                    Bawa Pulang
+                  </button>
+                </div>
+
                 <input 
                   type="text" 
                   value={customerName} 
                   onChange={(e) => setCustomerName(e.target.value)} 
-                  placeholder={orderType === 'dine_in' ? "Nomor Meja (Cth: Meja 12)" : "Nama Pelanggan / Ojol"} 
+                  placeholder={orderType === 'dine_in' ? "Nomor Meja (Wajib, cth: Meja 05)" : "Nama Pelanggan / Ojol"} 
                   className="w-full bg-white border border-stone-300 rounded-lg p-3 outline-none focus:border-amber-500 font-bold text-stone-800"
+                  required
                 />
               </div>
                 <div className="space-y-4">

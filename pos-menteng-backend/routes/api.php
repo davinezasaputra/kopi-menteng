@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccountingController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
@@ -55,7 +56,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/finance/dashboard', [FinanceController::class, 'dashboard']);
     Route::post('/finance/expenses', [FinanceController::class, 'addExpense']);
     Route::get('/finance/export', [FinanceController::class, 'exportCsv']);
+
+    Route::get('/customers', [CustomerController::class, 'index']);
+    Route::post('/customers', [CustomerController::class, 'store']);
+    Route::post('/customers/search', [CustomerController::class, 'search']);
 });
+
+
 
 Route::get('/user', function (Request $request) {
     return $request->user();

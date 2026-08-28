@@ -3,7 +3,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 type AdminSidebarProps = {
-  activePage?: 'users' | 'dashboard' | 'pos' | 'inventory' | 'raw-materials' | 'history' | 'accounting';
+  activePage?: 'users' | 'dashboard' | 'pos' | 'inventory' | 'raw-materials' | 'history' | 'accounting' | 'customers';
 };
 
 const menuItems = [
@@ -12,8 +12,9 @@ const menuItems = [
     { key: 'inventory', label: 'Data Produk', icon: '📦', path: '/inventory' },
     { key: 'raw-materials', label: 'Bahan Baku', icon: '🫙', path: '/raw-materials' },
     { key: 'history', label: 'Riwayat & Laporan', icon: '🧾', path: '/history' },
-    { key: 'Users', label: 'Kelola Users', icon: '👥', path: '/users' },
-    { key: 'Accounting', label: 'Buku Akuntan', icon: '💲', path: '/accounting' },
+    { key: 'users', label: 'Kelola Users', icon: '👥', path: '/users' },
+    { key: 'accounting', label: 'Buku Akuntan', icon: '💲', path: '/accounting' },
+    { key: 'customers', label: 'Pelanggan', icon: '💻', path: '/customers' },
 ] as const;
 
 export default function AdminSidebar({ activePage = 'dashboard' }: AdminSidebarProps) {

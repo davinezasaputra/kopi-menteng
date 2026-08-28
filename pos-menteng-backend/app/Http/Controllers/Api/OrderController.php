@@ -3,15 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Shift;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Midtrans\Config;
 use Midtrans\Snap;
-use Carbon\Carbon;
 
 class OrderController extends Controller
 {
@@ -40,6 +41,7 @@ class OrderController extends Controller
         $validated = $request->validate([
             'payment_method' => 'required|in:cash,qris,bank_transfer,unpaid',
             'order_type' => 'required|in:dine_in,takeaway',
+            'customer_id' => 'nullable|exists:customers,id',
             'customer_name' => 'nullable|string|max:50',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -93,10 +95,24 @@ class OrderController extends Controller
                 ];
             }
 
-            // LOGIKA PAJAK INKLUSIF & LABA BERSIH
-            $total = $subtotal; // Harga akhir mutlak sama dengan harga di menu
-            $basePrice = $total / 1.11; // DPP (Dasar Pengenaan Pajak)
-            $tax = $total - $basePrice; // Potongan PPN
+            // 1. Dapatkan Total Harga Mentah dari Keranjang
+            $rawTotal = $subtotal; 
+
+            // 2. LOGIKA CRM MEMBER (Diskon)
+            $discount = 0;
+            $customer = null;
+            if (!empty($validated['customer_id'])) {
+                $customer = Customer::find($validated['customer_id']);
+                if ($customer) {
+                    if ($customer->tier === 'vip') $discount = $rawTotal * 0.10; // VIP Diskon 10%
+                    elseif ($customer->tier === 'gold') $discount = $rawTotal * 0.05; // Gold Diskon 5%
+                }
+            }
+
+            // 3. LOGIKA PAJAK INKLUSIF & LABA BERSIH
+            $total = $rawTotal - $discount; // Harga akhir setelah diskon
+            $basePrice = $total / 1.11; // DPP (Dasar Pengenaan Pajak) baru
+            $tax = $total - $basePrice; // Potongan PPN baru
             $netProfit = $basePrice - $totalCogs; // Laba Bersih = DPP - Modal
 
             $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
@@ -104,18 +120,25 @@ class OrderController extends Controller
             $order = Order::create([
                 'user_id' => $user->id,
                 'shift_id' => $activeShift->id,
+                'customer_id' => $customer ? $customer->id : null, // Simpan Relasi Member
                 'invoice_number' => $invoiceNumber,
-                'subtotal' => $basePrice, // Simpan harga bersih tanpa pajak
+                'subtotal' => $basePrice,
                 'tax' => $tax,
-                'discount' => 0, 
-                'total' => $total, // Harga yang dibayar pelanggan
-                'total_cogs' => $totalCogs, // Rekaman HPP
-                'net_profit' => $netProfit, // Rekaman Laba Bersih
+                'discount' => $discount, // Rekam Potongan Harga
+                'total' => $total,
+                'total_cogs' => $totalCogs,
+                'net_profit' => $netProfit,
                 'payment_method' => $validated['payment_method'],
                 'order_type' => $validated['order_type'],
                 'customer_name' => $validated['customer_name'],
                 'status' => $validated['payment_method'] === 'cash' ? 'paid' : 'pending',
             ]);
+
+            // 4. BERIKAN POIN LOYALITAS (1 Poin tiap Rp 10.000)
+            if ($customer && $validated['payment_method'] === 'cash') {
+                $earnedPoints = floor($total / 10000);
+                $customer->increment('points', $earnedPoints);
+            }
 
             foreach ($processedItems as $processedItem) {
                 $order->items()->create($processedItem);

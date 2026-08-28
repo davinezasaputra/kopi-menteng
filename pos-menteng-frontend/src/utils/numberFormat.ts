@@ -13,3 +13,8 @@ export const formatNumberInput = (value: string, allowDecimal = false) => {
 };
 
 export const parseNumberInput = (value: string) => Number(value.replace(/\./g, '').replace(',', '.')) || 0;
+
+export const formatRp = (value: number | string) => {
+  const numValue = typeof value === 'string' ? parseNumberInput(value) : value;
+  return `Rp ${Number(numValue).toLocaleString('id-ID')}`;
+};

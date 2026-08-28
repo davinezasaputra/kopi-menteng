@@ -119,7 +119,8 @@ export default function Users() {
                 <label className="block text-sm font-bold text-stone-600 mb-1">Hak Akses (Role)</label>
                 <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full rounded-xl border border-stone-300 p-3 outline-none focus:border-amber-500">
                   <option value="kasir">Kasir (Hanya POS)</option>
-                  <option value="admin">Admin (Akses Penuh)</option>
+                  <option value="manager">Manager (Akses Penuh)</option>
+                  <option value="owner"> Owner (Akses Penuh)</option>
                 </select>
               </div>
               <div className="mt-6 flex gap-4 pt-4 border-t border-stone-100">
