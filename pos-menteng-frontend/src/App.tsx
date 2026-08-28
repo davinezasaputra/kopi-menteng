@@ -5,6 +5,7 @@ import Pos from './pages/Pos';
 import Inventory from './pages/Inventory';
 import History from './pages/History';
 import RawMaterials from './pages/RawMaterials';
+import Dashboard from './pages/Dashboard';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/history" element={<History />} />
         <Route path="/raw-materials" element={<RawMaterials />} />
+        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </BrowserRouter>
   );

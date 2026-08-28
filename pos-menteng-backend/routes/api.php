@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductController;
@@ -39,6 +40,8 @@ Route::middleware('auth:sanctum')->group(function(){
     Route::post('/raw-materials/{id}/restock', [RawMaterialController::class, 'restock']);
 
 });
+
+Route::get('/finance/dashboard', [FinanceController::class, 'dashboard']);
 
 Route::get('/user', function (Request $request) {
     return $request->user();

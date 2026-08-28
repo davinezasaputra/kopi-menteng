@@ -26,7 +26,7 @@ export default function AdminLogin() {
       if (response.data.status === 'success') {
         localStorage.setItem('token', response.data.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
-        navigate('/inventory');
+        navigate('/dashboard');
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Terjadi kesalahan koneksi ke server');

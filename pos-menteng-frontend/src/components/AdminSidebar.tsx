@@ -1,17 +1,18 @@
 import { useNavigate } from 'react-router-dom';
 
 type AdminSidebarProps = {
-  activePage?: 'pos' | 'inventory' | 'raw-materials' | 'history';
+  activePage?: 'dashboard' | 'pos' | 'inventory' | 'raw-materials' | 'history';
 };
 
 const menuItems = [
-  { key: 'pos', label: 'Kasir (POS)', icon: '🛒', path: '/pos' },
-  { key: 'inventory', label: 'Data Produk', icon: '📦', path: '/inventory' },
-  { key: 'raw-materials', label: 'Bahan Baku', icon: '🫙', path: '/raw-materials' },
-  { key: 'history', label: 'Riwayat & Laporan', icon: '🧾', path: '/history' },
+    { key: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard'},
+    { key: 'pos', label: 'Kasir (POS)', icon: '🛒', path: '/pos' },
+    { key: 'inventory', label: 'Data Produk', icon: '📦', path: '/inventory' },
+    { key: 'raw-materials', label: 'Bahan Baku', icon: '🫙', path: '/raw-materials' },
+    { key: 'history', label: 'Riwayat & Laporan', icon: '🧾', path: '/history' },
 ] as const;
 
-export default function AdminSidebar({ activePage = 'inventory' }: AdminSidebarProps) {
+export default function AdminSidebar({ activePage = 'dashboard' }: AdminSidebarProps) {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
