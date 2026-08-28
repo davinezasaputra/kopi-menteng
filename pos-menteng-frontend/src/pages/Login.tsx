@@ -39,7 +39,7 @@ export default function Login() {
       if (response.data.status === 'success') {
         // Simpan token dan data user ke penyimpanan browser
         localStorage.setItem('token', response.data.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('user', JSON.stringify(response.data.data.user));
 
         // Arahkan ke halaman POS
         navigate('/pos');

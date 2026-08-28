@@ -39,6 +39,8 @@ class OrderController extends Controller
 
         $validated = $request->validate([
             'payment_method' => 'required|in:cash,qris,bank_transfer,unpaid',
+            'order_type' => 'required|in:dine_in,takeaway',
+            'customer_name' => 'nullable|string|max:50',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
@@ -72,6 +74,10 @@ class OrderController extends Controller
                     }
                     
                     $material->decrement('stock', $totalMaterialNeeded);
+
+                    if ($material->fresh()->stock <= $material->min_stock_level) {
+                        $material->update(['is_requested' => true]);
+                    }
                     
                     // Kalkulasi HPP: Kebutuhan bahan x Harga Rata-rata Satuan
                     $itemCogs += ($totalMaterialNeeded * $material->price_per_unit);
@@ -106,6 +112,8 @@ class OrderController extends Controller
                 'total_cogs' => $totalCogs, // Rekaman HPP
                 'net_profit' => $netProfit, // Rekaman Laba Bersih
                 'payment_method' => $validated['payment_method'],
+                'order_type' => $validated['order_type'],
+                'customer_name' => $validated['customer_name'],
                 'status' => $validated['payment_method'] === 'cash' ? 'paid' : 'pending',
             ]);
 

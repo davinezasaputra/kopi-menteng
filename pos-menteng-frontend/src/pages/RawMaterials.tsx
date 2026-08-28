@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import AdminSidebar from '../components/AdminSidebar';
+import { formatNumberInput, parseNumberInput } from '../utils/numberFormat';
 
 
 interface RawMaterial {
@@ -11,7 +12,8 @@ interface RawMaterial {
   category: string;
   unit: string;
   stock: number;
-  is_shopping_requested: boolean;
+  min_stock_level: number;
+  is_requested: boolean;
 }
 
 export default function RawMaterials() {
@@ -31,7 +33,24 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', category: 'bar', unit: 'gram', stock: '' });
+  const [formData, setFormData] = useState({ name: '', category: 'bar', unit: 'gram', stock: '', min_stock_level: '' });
+  const formatRp = (amount: number) => new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(amount || 0);
+  const formatStock = (stock: number, unit: string) => {
+    const numericStock = Number(stock) || 0;
+    if (unit === 'ml' && numericStock >= 1000) {
+      return `${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(numericStock / 1000)} L`;
+    }
+    if (unit === 'gram' && numericStock >= 1000) {
+      return `${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(numericStock / 1000)} Kg`;
+    }
+
+    const value = unit === 'pcs' ? Math.round(numericStock) : numericStock;
+    return `${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value)} ${unit}`;
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -60,14 +79,14 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
     
     // Gunakan FormData karena kita mengirim file gambar
     const formData = new FormData();
-    formData.append('quantity_added', restockQty);
-    formData.append('total_cost', restockCost);
+    formData.append('quantity_added', String(parseNumberInput(restockQty)));
+    formData.append('total_cost', String(parseNumberInput(restockCost)));
     if (receiptFile) {
       formData.append('receipt_image', receiptFile);
     }
 
     try {
-      await axios.post(`http://localhost:8000/api/raw-materials/${selectedMaterial.id}/restock`, formData, {
+      const response = await axios.post(`http://localhost:8000/api/raw-materials/${selectedMaterial.id}/restock`, formData, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data' 
@@ -78,6 +97,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
       setRestockCost('');
       setReceiptFile(null);
       fetchMaterials(); // Refresh tabel
+      toast.success(`Restock berhasil. Total pembelian ${formatRp(Number(response.data.data.total_cost))} tercatat.`);
     } catch (error) {
       toast.error('Gagal memperbarui stok dan HPP.');
     }
@@ -90,7 +110,8 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
       name: formData.name,
       category: formData.category,
       unit: formData.unit,
-      stock: Number(formData.stock)
+      stock: parseNumberInput(formData.stock),
+      min_stock_level: parseNumberInput(formData.min_stock_level)
     };
 
     try {
@@ -127,7 +148,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
     // 1. OPTIMISTIC UPDATE: Ubah warna & status di layar saat itu juga! (Tanpa loading)
     setMaterials(prevMaterials => 
       prevMaterials.map(item => 
-        item.id === id ? { ...item, is_shopping_requested: !item.is_shopping_requested } : item
+        item.id === id ? { ...item, is_requested: !item.is_requested } : item
       )
     );
 
@@ -149,7 +170,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
       // 3. JIKA GAGAL: Kembalikan status tombol ke keadaan semula dan beri tahu user
       setMaterials(prevMaterials => 
         prevMaterials.map(item => 
-          item.id === id ? { ...item, is_shopping_requested: !item.is_shopping_requested } : item
+          item.id === id ? { ...item, is_requested: !item.is_requested } : item
         )
       );
       toast.error(error.response?.data?.message || 'Gagal menyinkronkan status belanja ke server.');
@@ -160,14 +181,14 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const openAddModal = () => {
     setIsEditing(false);
     setEditId(null);
-    setFormData({ name: '', category: 'bar', unit: 'gram', stock: '' });
+    setFormData({ name: '', category: 'bar', unit: 'gram', stock: '', min_stock_level: '' });
     setShowModal(true);
   };
 
   const openEditModal = (item: RawMaterial) => {
     setIsEditing(true);
     setEditId(item.id);
-    setFormData({ name: item.name, category: item.category, unit: item.unit, stock: item.stock.toString() });
+    setFormData({ name: item.name, category: item.category, unit: item.unit, stock: item.stock.toString(), min_stock_level: item.min_stock_level?.toString() || '' });
     setShowModal(true);
   };
 
@@ -175,7 +196,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const filteredMaterials = materials.filter(item => {
     if (activeTab === 'bar') return item.category === 'bar';
     if (activeTab === 'dapur') return item.category === 'dapur';
-    if (activeTab === 'shopping') return item.is_shopping_requested === true;
+    if (activeTab === 'shopping') return item.is_requested === true;
     return true; // 'all'
   });
 
@@ -200,7 +221,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
             <button onClick={() => setActiveTab('bar')} className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'bar' ? 'bg-amber-700 text-white shadow-md' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-100'}`}>Bahan Bar</button>
             <button onClick={() => setActiveTab('dapur')} className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'dapur' ? 'bg-amber-700 text-white shadow-md' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-100'}`}>Bahan Dapur</button>
             <button onClick={() => setActiveTab('shopping')} className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'shopping' ? 'bg-red-500 text-white shadow-md' : 'bg-red-50 text-red-500 border border-red-200 hover:bg-red-100'}`}>
-              🛒 Daftar Belanja <span className="bg-white text-red-500 rounded-full px-2 py-0.5 text-xs">{materials.filter(m => m.is_shopping_requested).length}</span>
+              🛒 Daftar Belanja <span className="bg-white text-red-500 rounded-full px-2 py-0.5 text-xs">{materials.filter(m => m.is_requested).length}</span>
             </button>
           </div>
 
@@ -222,19 +243,19 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
                   <tr><td colSpan={5} className="p-8 text-center text-stone-500">Data tidak ditemukan.</td></tr>
                 ) : (
                   filteredMaterials.map((item) => (
-                    <tr key={item.id} className={`transition ${item.is_shopping_requested ? 'bg-red-50/50' : 'hover:bg-stone-50'}`}>
+                    <tr key={item.id} className={`transition ${item.is_requested ? 'bg-red-50/50' : 'hover:bg-stone-50'}`}>
                       <td className="p-4 text-center">
                         <button 
                           onClick={() => toggleShoppingRequest(item.id)}
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-sm border ${item.is_shopping_requested ? 'bg-red-500 border-red-600 text-white' : 'bg-white border-stone-300 text-stone-300 hover:border-red-400 hover:text-red-400'}`}
-                          title={item.is_shopping_requested ? 'Batal Request Belanja' : 'Request Beli Bahan Ini'}
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-sm border ${item.is_requested ? 'bg-red-500 border-red-600 text-white' : 'bg-white border-stone-300 text-stone-300 hover:border-red-400 hover:text-red-400'}`}
+                          title={item.is_requested ? 'Batal Request Belanja' : 'Request Beli Bahan Ini'}
                         >
                           🛒
                         </button>
                       </td>
                       <td className="p-4 font-bold text-stone-700">
                         {item.name}
-                        {item.is_shopping_requested && <span className="ml-2 text-xs text-red-500 font-normal italic">Butuh Restock</span>}
+                        {item.is_requested && <span className="ml-2 text-xs text-red-500 font-normal italic">Butuh Restock</span>}
                       </td>
                       <td className="p-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${item.category === 'bar' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
@@ -242,7 +263,7 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
                         </span>
                       </td>
                       <td className="p-4 font-bold text-amber-700">
-                        {item.stock} <span className="text-sm font-medium text-stone-400">{item.unit}</span>
+                        {formatStock(item.stock, item.unit)}
                       </td>
                       <td className="p-4 flex justify-center gap-2">
                         {activeTab !== 'shopping' && (
@@ -296,7 +317,11 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
               </div>
               <div>
                 <label className="block text-sm font-bold text-stone-600 mb-1">Stok Fisik Saat Ini</label>
-                <input type="number" step="0.01" required min="0" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} className="w-full rounded-xl border border-stone-300 p-3 outline-none focus:border-amber-500" placeholder="0" />
+                <input type="text" inputMode="decimal" required value={formData.stock} onChange={e => setFormData({...formData, stock: formatNumberInput(e.target.value, formData.unit !== 'pcs')})} className="w-full rounded-xl border border-stone-300 p-3 outline-none focus:border-amber-500" placeholder="0" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-stone-600 mb-1">Batas Minimum Stok</label>
+                <input type="text" inputMode="decimal" required value={formData.min_stock_level} onChange={e => setFormData({...formData, min_stock_level: formatNumberInput(e.target.value, formData.unit !== 'pcs')})} className="w-full rounded-xl border border-stone-300 p-3 outline-none focus:border-amber-500" placeholder="Request belanja saat stok mencapai angka ini" />
               </div>
               <div className="mt-6 flex gap-4 pt-4 border-t border-stone-100">
                 <button type="button" onClick={() => setShowModal(false)} className="w-1/3 rounded-xl bg-stone-100 py-3 font-bold text-stone-500 hover:bg-stone-200">Batal</button>
@@ -316,11 +341,11 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
             <form onSubmit={handleRestockSubmit} className="space-y-4">
               <div>
                 <label className="text-sm font-bold text-stone-600 block mb-1">Kuantitas Masuk ({selectedMaterial.unit})</label>
-                <input type="number" value={restockQty} onChange={e => setRestockQty(e.target.value)} required className="w-full border rounded-lg p-3 bg-stone-50" />
+                <input type="text" inputMode="decimal" value={restockQty} onChange={e => setRestockQty(formatNumberInput(e.target.value, selectedMaterial.unit !== 'pcs'))} required className="w-full border rounded-lg p-3 bg-stone-50" />
               </div>
               <div>
                 <label className="text-sm font-bold text-stone-600 block mb-1">Total Harga Beli (Rp)</label>
-                <input type="number" value={restockCost} onChange={e => setRestockCost(e.target.value)} required className="w-full border rounded-lg p-3 bg-stone-50" />
+                <input type="text" inputMode="numeric" value={restockCost} onChange={e => setRestockCost(formatNumberInput(e.target.value))} required className="w-full border rounded-lg p-3 bg-stone-50" />
               </div>
               <div>
                 <label className="text-sm font-bold text-stone-600 block mb-1">Foto Struk (Opsional)</label>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AccountingController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\OrderController;
@@ -14,6 +15,10 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/login-pin', [AuthController::class, 'loginPin']);
 Route::post('/midtrans/webhook', [PaymentController::class, 'handleWebhook']);
+
+Route::get('/users', [\App\Http\Controllers\Api\UserController::class, 'index']);
+Route::post('/users', [\App\Http\Controllers\Api\UserController::class, 'store']);
+Route::delete('/users/{id}', [\App\Http\Controllers\Api\UserController::class, 'destroy']);
 
 Route::middleware('auth:sanctum')->group(function(){
     Route::get('/me', function(Request $request) {return $request->user();});
@@ -41,7 +46,16 @@ Route::middleware('auth:sanctum')->group(function(){
 
 });
 
-Route::get('/finance/dashboard', [FinanceController::class, 'dashboard']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/accounting/accounts', [AccountingController::class, 'accounts']);
+    Route::post('/accounting/accounts', [AccountingController::class, 'addAccount']);
+    Route::get('/accounting/journals', [AccountingController::class, 'journals']);
+    Route::post('/accounting/journals', [AccountingController::class, 'addJournal']);
+
+    Route::get('/finance/dashboard', [FinanceController::class, 'dashboard']);
+    Route::post('/finance/expenses', [FinanceController::class, 'addExpense']);
+    Route::get('/finance/export', [FinanceController::class, 'exportCsv']);
+});
 
 Route::get('/user', function (Request $request) {
     return $request->user();

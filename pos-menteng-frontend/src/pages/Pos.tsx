@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { formatNumberInput, parseNumberInput } from '../utils/numberFormat';
 
 // --- INTERFACES ---
 interface Product {
@@ -86,6 +87,9 @@ export default function Pos() {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [reprintOrder, setReprintOrder] = useState<Order | null>(null);
 
+  const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>('dine_in');
+  const [customerName, setCustomerName] = useState('');
+
   const calculateEffectiveStock = (product: Product) => {
     let maxStock = product.stock;
     if (product.raw_materials && product.raw_materials.length > 0) {
@@ -150,7 +154,7 @@ export default function Pos() {
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const basePrice = total / 1.11; // DPP (Dasar Pengenaan Pajak)
   const tax = total - basePrice;  // Potongan PPN untuk laporan negara
-  const changeAmount = Number(cashTendered) - total;
+  const changeAmount = parseNumberInput(cashTendered) - total;
 
   const handleLogout = async() => {
     const token = localStorage.getItem('token');
@@ -178,7 +182,7 @@ export default function Pos() {
     e.preventDefault();
     setShiftProcessing(true);
     try {
-      await axios.post('http://localhost:8000/api/shifts/open', { starting_cash: Number(startingCash) }, {
+      await axios.post('http://localhost:8000/api/shifts/open', { starting_cash: parseNumberInput(startingCash) }, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       setIsShiftOpen(true);
@@ -195,7 +199,7 @@ export default function Pos() {
     e.preventDefault();
     setShiftProcessing(true);
     try {
-      await axios.post('http://localhost:8000/api/shifts/close', { actual_ending_cash: Number(endingCash) }, {
+      await axios.post('http://localhost:8000/api/shifts/close', { actual_ending_cash: parseNumberInput(endingCash) }, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       setIsShiftOpen(false);
@@ -232,7 +236,7 @@ export default function Pos() {
   const handleMidtransCheckout = async () => {
     setIsProcessing(true);
     try {
-      const payload = { payment_method: 'qris', items: cart.map(item => ({ product_id: item.id, quantity: item.quantity })) };
+      const payload = { payment_method: 'qris', order_type: orderType, customer_name: customerName, items: cart.map(item => ({ product_id: item.id, quantity: item.quantity })) };
       const response = await axios.post('http://localhost:8000/api/orders/checkout', payload, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -249,14 +253,14 @@ export default function Pos() {
 
   const handleConfirmCashPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (Number(cashTendered) < total){
+    if (parseNumberInput(cashTendered) < total){
       toast.error('Uang tunai tidak cukup untuk membayar total pesanan.');
       return;
     }
     setIsProcessing(true);
     const toastId = toast.loading('Memprosses Transasksi...');
     try {
-      const payload = { payment_method: 'cash', items: cart.map(item => ({ product_id: item.id, quantity: item.quantity })) };
+      const payload = { payment_method: 'cash', order_type: orderType, customer_name: customerName, items: cart.map(item => ({ product_id: item.id, quantity: item.quantity })) };
       await axios.post('http://localhost:8000/api/orders/checkout', payload, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -415,7 +419,7 @@ export default function Pos() {
             <form onSubmit={handleOpenShift}>
               <div className="my-6 relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-stone-400">Rp</span>
-                <input type="number" value={startingCash} onChange={(e) => setStartingCash(e.target.value)} className="w-full rounded-xl border border-stone-300 bg-stone-50 p-4 pl-12 text-xl font-bold text-stone-800" placeholder="Modal awal..." required min="0" />
+                <input type="text" inputMode="numeric" value={startingCash} onChange={(e) => setStartingCash(formatNumberInput(e.target.value))} className="w-full rounded-xl border border-stone-300 bg-stone-50 p-4 pl-12 text-xl font-bold text-stone-800" placeholder="Modal awal..." required />
               </div>
               <div className="flex gap-4">
                 <button type="button" onClick={() => setShowShiftModal(false)} className="w-1/3 rounded-xl bg-stone-100 py-3 font-bold text-stone-500">Batal</button>
@@ -437,7 +441,7 @@ export default function Pos() {
             <form onSubmit={handleCloseShift}>
               <div className="my-6 relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-stone-400">Rp</span>
-                <input type="number" value={endingCash} onChange={(e) => setEndingCash(e.target.value)} className="w-full rounded-xl border border-stone-300 bg-stone-50 p-4 pl-12 text-xl font-bold text-stone-800 focus:border-red-500 focus:ring-2 focus:ring-red-200" placeholder="Uang fisik akhir..." required min="0" />
+                <input type="text" inputMode="numeric" value={endingCash} onChange={(e) => setEndingCash(formatNumberInput(e.target.value))} className="w-full rounded-xl border border-stone-300 bg-stone-50 p-4 pl-12 text-xl font-bold text-stone-800 focus:border-red-500 focus:ring-2 focus:ring-red-200" placeholder="Uang fisik akhir..." required />
               </div>
               <div className="flex gap-4">
                 <button type="button" onClick={() => setShowCloseShiftModal(false)} className="w-1/3 rounded-xl bg-stone-100 py-3 font-bold text-stone-500">Batal</button>
@@ -545,7 +549,7 @@ export default function Pos() {
                       <div className="mt-2 flex justify-between text-sm font-bold text-stone-800"><span>PEMBAYARAN</span><span>QRIS (LUNAS)</span></div>
                     ) : cashTendered !== '' && changeAmount >= 0 ? (
                       <>
-                        <div className="mt-2 flex justify-between text-sm"><span>Tunai</span><span>Rp {Number(cashTendered).toLocaleString('id-ID')}</span></div>
+                        <div className="mt-2 flex justify-between text-sm"><span>Tunai</span><span>Rp {parseNumberInput(cashTendered).toLocaleString('id-ID')}</span></div>
                         <div className="mt-1 flex justify-between text-sm"><span>Kembali</span><span>Rp {changeAmount.toLocaleString('id-ID')}</span></div>
                       </>
                     ) : null}
@@ -567,6 +571,10 @@ export default function Pos() {
                         </div>
                       ))}
                     </div>
+                    <div className="mt-2 text-center border-2 border-black p-2">
+                    <p className="text-xl font-black">{orderType === 'dine_in' ? 'DINE-IN' : 'TAKEAWAY'}</p>
+                    <p className="text-2xl font-black">{customerName || 'TANPA NAMA'}</p>
+                  </div>
                     <div className="mt-8 border-t-2 border-dashed border-black pt-4 text-center text-sm font-bold">~ SIAPKAN PESANAN ~</div>
                   </div>
                 )}
@@ -576,6 +584,19 @@ export default function Pos() {
             <div className="w-1/2 bg-white p-8 print:hidden flex flex-col justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-stone-800 mb-6">Pilih Pembayaran</h2>
+                <div className="mb-6 bg-stone-50 p-4 rounded-xl border border-stone-200">
+                <div className="flex gap-2 mb-4">
+                  <button onClick={() => setOrderType('dine_in')} className={`flex-1 py-2 rounded-lg font-bold text-sm border-2 transition ${orderType === 'dine_in' ? 'bg-amber-100 border-amber-500 text-amber-800' : 'bg-white border-stone-200 text-stone-500'}`}>Makan di Tempat</button>
+                  <button onClick={() => setOrderType('takeaway')} className={`flex-1 py-2 rounded-lg font-bold text-sm border-2 transition ${orderType === 'takeaway' ? 'bg-amber-100 border-amber-500 text-amber-800' : 'bg-white border-stone-200 text-stone-500'}`}>Bawa Pulang</button>
+                </div>
+                <input 
+                  type="text" 
+                  value={customerName} 
+                  onChange={(e) => setCustomerName(e.target.value)} 
+                  placeholder={orderType === 'dine_in' ? "Nomor Meja (Cth: Meja 12)" : "Nama Pelanggan / Ojol"} 
+                  className="w-full bg-white border border-stone-300 rounded-lg p-3 outline-none focus:border-amber-500 font-bold text-stone-800"
+                />
+              </div>
                 <div className="space-y-4">
                   <button onClick={() => setShowCashModal(true)} className="w-full rounded-xl border-2 border-stone-200 p-4 text-left hover:border-amber-500 hover:bg-amber-50 flex items-center justify-between transition group">
                     <div><h3 className="font-bold text-stone-800 text-lg group-hover:text-amber-700">Tunai (Cash)</h3></div>
@@ -605,7 +626,7 @@ export default function Pos() {
             </div>
             <form onSubmit={handleConfirmCashPayment} className="mt-6">
               <label className="mb-2 block text-sm font-bold text-stone-600">Uang Diterima (Rp)</label>
-              <input type="number" value={cashTendered} onChange={(e) => setCashTendered(e.target.value)} className="w-full rounded-xl border border-stone-300 bg-stone-50 p-4 text-2xl font-bold text-stone-800 outline-none" placeholder="0" autoFocus />
+              <input type="text" inputMode="numeric" value={cashTendered} onChange={(e) => setCashTendered(formatNumberInput(e.target.value))} className="w-full rounded-xl border border-stone-300 bg-stone-50 p-4 text-2xl font-bold text-stone-800 outline-none" placeholder="0" autoFocus />
               <div className="mt-4 grid grid-cols-3 gap-2">
                 <button type="button" onClick={() => setCashTendered(total.toString())} className="rounded-lg border py-2 text-sm font-bold text-stone-600 bg-white">Uang Pas</button>
                 <button type="button" onClick={() => setCashTendered('50000')} className="rounded-lg border py-2 text-sm font-bold text-stone-600 bg-white">50.000</button>

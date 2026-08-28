@@ -9,6 +9,8 @@ import Inventory from './pages/Inventory';
 import History from './pages/History';
 import RawMaterials from './pages/RawMaterials';
 import Dashboard from './pages/Dashboard';
+import Users from './pages/Users';
+import Accounting from './pages/Accounting';
 
 const AxiosInterceptor = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
@@ -40,10 +42,10 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     const token = localStorage.getItem('token');
     const userString = localStorage.getItem('user');
-    if(!token || !userString){
+    if(!token || !userString || userString === 'undefined'){
       return <Navigate to = "/" replace />;
     }
-    const user =JSON.parse(userString);
+    const user = JSON.parse(userString);
     if (allowedRoles && !allowedRoles.includes(user?.role)) {
       if(user?.role === 'cashier' || user?.role === 'kasir'){
         return <Navigate to ="/pos" replace />;
@@ -70,6 +72,8 @@ function App() {
         <Route path="/history" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <History /> </ProtectedRoute>} />
         <Route path="/raw-materials" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <RawMaterials /> </ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <Dashboard/> </ProtectedRoute>} />
+        <Route path="/users" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Users /></ProtectedRoute>} />
+        <Route path ="/accounting" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Accounting /></ProtectedRoute>} />
       </Routes>
       </AxiosInterceptor>
     </BrowserRouter>

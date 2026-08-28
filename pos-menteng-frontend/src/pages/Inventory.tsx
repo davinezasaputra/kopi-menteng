@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import AdminSidebar from '../components/AdminSidebar';
+import { formatNumberInput, parseNumberInput } from '../utils/numberFormat';
 
 interface RawMaterialPivot {
   id: string;
@@ -140,8 +141,8 @@ export default function Inventory() {
     try {
       const payload = {
         name: formData.name,
-        price: Number(formData.price),
-        stock: Number(formData.stock),
+        price: parseNumberInput(formData.price),
+        stock: parseNumberInput(formData.stock),
         category_id: formData.category_id
       };
 
@@ -226,7 +227,7 @@ export default function Inventory() {
       await axios.post(`http://localhost:8000/api/products/${recipeProduct.id}/recipe`, {
         recipe: recipeItems.map(item => ({
           raw_material_id: item.raw_material_id,
-          quantity_needed: Number(item.quantity_needed)
+          quantity_needed: parseNumberInput(String(item.quantity_needed))
         }))
       }, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -320,11 +321,11 @@ export default function Inventory() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-stone-600 mb-1">Harga (Rp)</label>
-                  <input type="number" required min="0" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full rounded-xl border border-stone-300 p-3 outline-none focus:border-amber-500" placeholder="0" />
+                  <input type="text" inputMode="numeric" required value={formData.price} onChange={e => setFormData({...formData, price: formatNumberInput(e.target.value)})} className="w-full rounded-xl border border-stone-300 p-3 outline-none focus:border-amber-500" placeholder="0" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-stone-600 mb-1">Sisa Porsi</label>
-                  <input type="number" required min="0" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} className="w-full rounded-xl border border-stone-300 p-3 outline-none focus:border-amber-500" placeholder="0" />
+                  <input type="text" inputMode="numeric" required value={formData.stock} onChange={e => setFormData({...formData, stock: formatNumberInput(e.target.value)})} className="w-full rounded-xl border border-stone-300 p-3 outline-none focus:border-amber-500" placeholder="0" />
                 </div>
               </div>
               <div className="mt-6 flex gap-4 pt-4 border-t border-stone-100">
@@ -373,11 +374,10 @@ export default function Inventory() {
                       <label className="block text-xs font-bold text-stone-500 mb-1">Takaran / Porsi</label>
                       <div className="relative">
                         <input 
-                          type="number" 
-                          step="0.01"
-                          min="0"
+                          type="text"
+                          inputMode="decimal"
                           value={item.quantity_needed}
-                          onChange={(e) => updateRecipeRow(index, 'quantity_needed', e.target.value)}
+                          onChange={(e) => updateRecipeRow(index, 'quantity_needed', formatNumberInput(e.target.value, true))}
                           className="w-full p-2.5 rounded-lg border border-stone-300 outline-none focus:border-amber-500 text-sm font-bold pr-10"
                           placeholder="0"
                         />

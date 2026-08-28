@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\RawMaterial;
 use App\Models\RestockHistory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class RawMaterialController extends Controller
 {
@@ -23,6 +24,7 @@ class RawMaterialController extends Controller
             'category'=>'required|in:bar,dapur',
             'unit'=>'required|string',
             'stock'=>'required|numeric',
+            'min_stock_level'=>'nullable|numeric|min:0',
         ]);
 
         $materials = RawMaterial::create($request->all());
@@ -39,6 +41,7 @@ class RawMaterialController extends Controller
                 'category'=>'required|in:bar,dapur',
                 'unit'=>'required|string',
                 'stock'=>'required|numeric',
+                'min_stock_level'=>'nullable|numeric|min:0',
             ]);
             $data = $request->all();
             $data['is_requested'] = false;
@@ -92,32 +95,37 @@ class RawMaterialController extends Controller
                 'receipt_image' => 'nullable|image|max:2048' // Maks 2MB
             ]);
 
-            $material = RawMaterial::findOrFail($id);
             $imagePath = null;
 
             if ($request->hasFile('receipt_image')) {
                 $imagePath = $request->file('receipt_image')->store('receipts', 'public');
             }
 
-            // Hitung rata-rata harga satuan baru (Moving Average)
-            $oldTotalValue = $material->stock * $material->price_per_unit;
-            $newTotalValue = $oldTotalValue + $request->total_cost;
-            $newStock = $material->stock + $request->quantity_added;
-            
-            $material->price_per_unit = $newTotalValue / $newStock;
-            $material->stock = $newStock;
-            $material->is_requested = false; // Otomatis hilang dari daftar belanja
-            $material->save();
+            $restock = DB::transaction(function () use ($request, $id, $imagePath) {
+                $material = RawMaterial::lockForUpdate()->findOrFail($id);
 
-            RestockHistory::create([
-                'raw_material_id' => $material->id,
-                'quantity_added' => $request->quantity_added,
-                'total_cost' => $request->total_cost,
-                'receipt_image' => $imagePath,
-                'restocked_by' => auth()->user()->name
+                // Hitung rata-rata harga satuan baru (Moving Average).
+                $oldTotalValue = $material->stock * $material->price_per_unit;
+                $newStock = $material->stock + $request->quantity_added;
+                $material->price_per_unit = ($oldTotalValue + $request->total_cost) / $newStock;
+                $material->stock = $newStock;
+                $material->is_requested = false;
+                $material->save();
+
+                return RestockHistory::create([
+                    'raw_material_id' => $material->id,
+                    'quantity_added' => $request->quantity_added,
+                    'total_cost' => $request->total_cost,
+                    'receipt_image' => $imagePath,
+                    'restocked_by' => $request->user()?->name ?? 'System'
+                ]);
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Stok dan biaya pembelian berhasil dicatat',
+                'data' => $restock
             ]);
-
-            return response()->json(['status' => 'success', 'message' => 'Stok diperbarui']);
     }
 }
 
