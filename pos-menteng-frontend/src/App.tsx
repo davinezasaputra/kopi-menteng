@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Accounting from './pages/Accounting';
 import Customers from './pages/Customer';
+import Hrm from './pages/Hrm';
 
 const AxiosInterceptor = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
@@ -76,6 +77,7 @@ function App() {
         <Route path="/users" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Users /></ProtectedRoute>} />
         <Route path ="/accounting" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Accounting /></ProtectedRoute>} />
         <Route path ="/customers" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Customers /></ProtectedRoute>} />
+        <Route path="/hrm" element={<ProtectedRoute allowedRoles={['developer', 'admin', 'owner', 'manager']}><Hrm /></ProtectedRoute>} />
       </Routes>
       </AxiosInterceptor>
     </BrowserRouter>

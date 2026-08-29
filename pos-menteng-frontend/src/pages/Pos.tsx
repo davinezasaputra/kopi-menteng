@@ -257,6 +257,11 @@ export default function Pos() {
         setShowCashModal(false);
         setCashTendered('');
         setIsQrisReceipt(false);
+        // RESET SEMUA STATE UNTUK PESANAN BARU
+        setMember(null);
+        setSearchPhone('');
+        setCustomerName('');
+        setOrderType('dine_in');
       }, 500); 
     }, 500); 
   };
@@ -272,10 +277,6 @@ export default function Pos() {
       });
       if (response.data.status === 'success') {
         localStorage.setItem('pending_qris_cart', JSON.stringify(cart));
-        // setMember(null);
-        // setSearchPhone('');
-        // setCustomerName('');
-        // setOrderType('dine_in');
         window.location.href = response.data.payment_url;
       }
     } catch (error) {
@@ -300,10 +301,6 @@ export default function Pos() {
       });
 
       toast.success('Transaksi Berhasil', {id: toastId});
-      // setMember(null);
-      // setSearchPhone('');
-      // setCustomerName('');
-      // setOrderType('dine_in');
       await fetchProducts();
       setIsQrisReceipt(false);
       executePrintSequence();

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AccountingController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\FinanceController;
+use App\Http\Controllers\Api\HrmController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductController;
@@ -60,6 +61,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/customers', [CustomerController::class, 'index']);
     Route::post('/customers', [CustomerController::class, 'store']);
     Route::post('/customers/search', [CustomerController::class, 'search']);
+
+    Route::get('/hrm/attendances', [HrmController::class, 'attendances']);
+    Route::post('/hrm/clock-in', [HrmController::class, 'clockIn']);
+    Route::get('/hrm/payrolls', [HrmController::class, 'payrolls']);
+    Route::post('/hrm/payrolls', [HrmController::class, 'generatePayroll']);
+    Route::put('/hrm/payrolls/{id}/pay', [HrmController::class, 'paySalary']);
 });
 
 
