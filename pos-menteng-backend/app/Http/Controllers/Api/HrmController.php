@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\OperationalExpense;
 use App\Models\Payroll;
 use App\Models\User;
-use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class HrmController extends Controller
 {
@@ -65,11 +67,42 @@ class HrmController extends Controller
     }
 
     // Tandai Gaji Sudah Ditransfer
+   // Tandai Gaji Sudah Ditransfer & Catat Pengeluaran Otomatis
     public function paySalary($id)
     {
-        $payroll = Payroll::findOrFail($id);
-        $payroll->update(['is_paid' => true]);
+        $payroll = Payroll::with('user')->findOrFail($id);
         
-        return response()->json(['status' => 'success', 'message' => 'Gaji ditandai telah dibayar!']);
+        // Proteksi agar gaji tidak dibayar dua kali
+        if ($payroll->is_paid) {
+            return response()->json(['status' => 'error', 'message' => 'Gaji ini sudah ditransfer sebelumnya.'], 400);
+        }
+
+            DB::beginTransaction();
+        try {
+            // 1. Ubah status Slip Gaji menjadi Lunas
+            $payroll->update(['is_paid' => true]);
+            
+            // 2. Tembakkan datanya otomatis ke Kotak Pengeluaran Dasbor (OpEx)
+            OperationalExpense::create([
+                'name' => 'Pembayaran Gaji: ' . $payroll->user->name . ' (Periode ' . $payroll->period . ')',
+                'amount' => $payroll->total_salary,
+                'expense_date' => Carbon::today(),
+                'recorded_by' => 'Sistem HRIS (Otomatis)'
+            ]);
+
+            DB::commit();
+            
+            return response()->json([
+                'status' => 'success', 
+                'message' => 'Gaji berhasil dibayar dan Pengeluaran otomatis dicatat di Dasbor!'
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Terjadi kesalahan sinkronisasi ERP: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
