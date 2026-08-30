@@ -12,11 +12,12 @@ return new class extends Migration
     public function up()
     {
         Schema::create('operational_expenses', function (Blueprint $table) {
-            $table->id();
-            $table->string('name'); // Contoh: Gaji Karyawan, Listrik, Sewa Ruko
+            $table->uuid('id')->primary();
+            $table->foreignId('account_id')->constrained('accounts')->cascadeOnDelete();
+            $table->string('name');
             $table->decimal('amount', 12, 2);
             $table->date('expense_date');
-            $table->string('recorded_by');
+            $table->string('recorded_by')->nullable();
             $table->timestamps();
         });
     }

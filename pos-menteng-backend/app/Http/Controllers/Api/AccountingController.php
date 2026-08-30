@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 class AccountingController extends Controller
 {
     // Mengambil Daftar Akun + Kalkulasi Saldo Terkini
+
     public function accounts()
     {
         $accounts = Account::withSum('journalEntries as total_debit', 'debit')
@@ -42,6 +43,8 @@ class AccountingController extends Controller
                                 ->orderBy('date', 'desc')->orderBy('id', 'desc')->get();
         return response()->json(['status' => 'success', 'data' => $journals]);
     }
+
+    
 
     public function addJournal(Request $request)
     {

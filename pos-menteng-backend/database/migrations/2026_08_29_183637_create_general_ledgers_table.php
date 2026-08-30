@@ -16,8 +16,7 @@ return new class extends Migration
             $table->decimal('credit', 15, 2)->default(0);
             
             // Relasi Morph untuk mendeteksi sumber transaksi otomatis
-            $table->string('reference_type')->nullable();
-            $table->unsignedBigInteger('reference_id')->nullable();
+            $table->nullableUuidMorphs('reference');
             
             $table->timestamps();
         });

@@ -9,27 +9,42 @@ export default function Accounting() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [journals, setJournals] = useState<any[]>([]);
   
+  // Filter khusus untuk tampilan Buku Besar (General Ledger per Akun)
+  const [filterAccount, setFilterAccount] = useState('');
+
   const [showAccModal, setShowAccModal] = useState(false);
   const [accForm, setAccForm] = useState({ code: '', name: '', type: 'asset' });
 
   const [showJrnModal, setShowJrnModal] = useState(false);
-  const [jrnForm, setJrnForm] = useState({ account_id: '', date: new Date().toISOString().split('T')[0], description: '', debit: '', credit: '' });
+  const [jrnForm, setJrnForm] = useState({ 
+    account_id: '', 
+    date: new Date().toISOString().split('T')[0], 
+    description: '', 
+    debit: '', 
+    credit: '' 
+  });
 
   useEffect(() => {
-    if (activeTab === 'accounts') fetchAccounts();
-    else fetchJournals();
+    fetchAccounts();
+    if (activeTab === 'journals') {
+      fetchJournals();
+    }
   }, [activeTab]);
 
   const fetchAccounts = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/accounting/accounts', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
+      const res = await axios.get('http://localhost:8000/api/accounting/accounts', { 
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
       setAccounts(res.data.data);
     } catch (e) { toast.error('Gagal memuat Daftar Akun'); }
   };
 
   const fetchJournals = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/accounting/journals', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
+      const res = await axios.get('http://localhost:8000/api/accounting/journals', { 
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
       setJournals(res.data.data);
     } catch (e) { toast.error('Gagal memuat Jurnal Umum'); }
   };
@@ -37,24 +52,46 @@ export default function Accounting() {
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:8000/api/accounting/accounts', accForm, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
+      await axios.post('http://localhost:8000/api/accounting/accounts', accForm, { 
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
       toast.success('Akun tersimpan!');
       setShowAccModal(false);
+      setAccForm({ code: '', name: '', type: 'asset' }); 
       fetchAccounts();
-    } catch (e) { toast.error('Gagal menyimpan akun. Kode mungkin sudah ada.'); }
+    } catch (e) { toast.error('Gagal menyimpan akun.'); }
   };
 
   const handleSaveJournal = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:8000/api/accounting/journals', { ...jrnForm, debit: parseNumberInput(jrnForm.debit), credit: parseNumberInput(jrnForm.credit) }, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
+      const payload = {
+        ...jrnForm,
+        debit: parseNumberInput(jrnForm.debit) || 0,
+        credit: parseNumberInput(jrnForm.credit) || 0
+      };
+
+      await axios.post('http://localhost:8000/api/accounting/journals', payload, { 
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
       toast.success('Jurnal dicatat!');
       setShowJrnModal(false);
+      setJrnForm({ account_id: '', date: new Date().toISOString().split('T')[0], description: '', debit: '', credit: '' });
       fetchJournals();
     } catch (e) { toast.error('Gagal mencatat jurnal.'); }
   };
 
-  const formatRp = (angka: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0);
+  const formatRp = (angka: number) => new Intl.NumberFormat('id-ID', { 
+    style: 'currency', currency: 'IDR', minimumFractionDigits: 0 
+  }).format(angka || 0);
+
+  // Kalkulasi Buku Besar Dinamis
+  const filteredJournals = filterAccount 
+    ? journals.filter(jrn => jrn.account?.id == filterAccount || jrn.account_id == filterAccount)
+    : journals;
+
+  const totalDebit = filteredJournals.reduce((sum, jrn) => sum + Number(jrn.debit || 0), 0);
+  const totalCredit = filteredJournals.reduce((sum, jrn) => sum + Number(jrn.credit || 0), 0);
 
   return (
     <div className="flex h-screen w-full bg-stone-50 font-sans text-stone-800">
@@ -64,13 +101,36 @@ export default function Accounting() {
         <header className="h-20 bg-white border-b border-stone-200 flex items-center justify-between px-8 shadow-sm">
           <h1 className="text-xl font-bold text-stone-800">Buku Besar Akuntansi</h1>
           <div className="flex gap-2">
-            <button onClick={() => setActiveTab('accounts')} className={`px-4 py-2 font-bold rounded-lg transition ${activeTab === 'accounts' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>Daftar Akun (COA)</button>
-            <button onClick={() => { setActiveTab('journals'); fetchAccounts(); }} className={`px-4 py-2 font-bold rounded-lg transition ${activeTab === 'journals' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>Jurnal Umum</button>
+            <button 
+              onClick={() => setActiveTab('accounts')} 
+              className={`px-4 py-2 font-bold rounded-lg transition ${activeTab === 'accounts' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+            >
+              Daftar Akun (COA)
+            </button>
+            <button 
+              onClick={() => setActiveTab('journals')} 
+              className={`px-4 py-2 font-bold rounded-lg transition ${activeTab === 'journals' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+            >
+              Buku Besar & Jurnal
+            </button>
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-8">
-          <div className="mb-4 flex justify-end">
+          <div className="mb-4 flex items-center justify-between">
+            {activeTab === 'journals' ? (
+              <select 
+                value={filterAccount} 
+                onChange={(e) => setFilterAccount(e.target.value)}
+                className="border p-2 rounded-lg bg-white shadow-sm font-bold text-stone-700"
+              >
+                <option value="">Semua Akun (Jurnal Umum)</option>
+                {accounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>Buku Besar: {acc.name}</option>
+                ))}
+              </select>
+            ) : <div />}
+
             {activeTab === 'accounts' ? (
               <button onClick={() => setShowAccModal(true)} className="bg-amber-700 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-amber-800">+ Tambah Akun</button>
             ) : (
@@ -101,16 +161,29 @@ export default function Accounting() {
                   <tr><th className="p-4">Tanggal</th><th className="p-4">Keterangan</th><th className="p-4">Akun</th><th className="p-4 text-right">Debit</th><th className="p-4 text-right">Kredit</th></tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {journals.map(jrn => (
+                  {filteredJournals.map(jrn => (
                     <tr key={jrn.id} className="hover:bg-stone-50 text-sm">
                       <td className="p-4 text-stone-500">{jrn.date}</td>
                       <td className="p-4 font-bold">{jrn.description}</td>
-                      <td className="p-4"><span className="bg-stone-100 px-2 py-1 rounded text-xs font-bold">{jrn.account?.code}</span> {jrn.account?.name}</td>
+                      <td className="p-4">
+                        <span className="bg-stone-100 px-2 py-1 rounded text-xs font-bold mr-2">
+                          {jrn.account?.code || 'SYS'}
+                        </span> 
+                        {jrn.account?.name || jrn.account_category || 'Tanpa Akun'}
+                      </td>
                       <td className="p-4 text-right text-stone-700 font-bold">{jrn.debit > 0 ? formatRp(jrn.debit) : '-'}</td>
                       <td className="p-4 text-right text-stone-700 font-bold">{jrn.credit > 0 ? formatRp(jrn.credit) : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
+                {/* Baris Total Untuk Buku Besar */}
+                <tfoot className="bg-stone-100 border-t-2 border-stone-300">
+                  <tr>
+                    <td colSpan={3} className="p-4 text-right font-black uppercase text-stone-600">Total Akumulasi:</td>
+                    <td className="p-4 text-right font-black text-amber-700">{formatRp(totalDebit)}</td>
+                    <td className="p-4 text-right font-black text-amber-700">{formatRp(totalCredit)}</td>
+                  </tr>
+                </tfoot>
               </table>
             )}
           </div>

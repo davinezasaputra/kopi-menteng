@@ -3,8 +3,11 @@
 use App\Http\Controllers\Api\AccountingController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\HrmController;
+use App\Http\Controllers\Api\ImportController;
+use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductController;
@@ -45,6 +48,8 @@ Route::middleware('auth:sanctum')->group(function(){
     Route::delete('/raw-materials/{id}', [RawMaterialController::class, 'destroy']);
     Route::put('/raw-materials/{id}/toggle-request', [RawMaterialController::class, 'toggleShoppingRequest']);
     Route::post('/raw-materials/{id}/restock', [RawMaterialController::class, 'restock']);
+    Route::post('/raw-materials/import', [ImportController::class, 'importRawMaterials']);
+    Route::get('/raw-materials/import/template', [ImportController::class, 'downloadTemplate']);
 
 });
 
@@ -62,6 +67,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/customers', [CustomerController::class, 'store']);
     Route::post('/customers/search', [CustomerController::class, 'search']);
 
+    Route::get('/employees', [EmployeeController::class, 'index']);
+    Route::get('/employees/search', [EmployeeController::class, 'search']);
+    Route::get('/employees/{id}', [EmployeeController::class, 'show']);
+    Route::post('/employees', [EmployeeController::class, 'store']);
+    Route::put('/employees/{id}', [EmployeeController::class, 'update']);
+    Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
+
+    // Leave Management Routes
+    Route::get('/leaves', [LeaveController::class, 'index']);
+    Route::post('/leaves', [LeaveController::class, 'store']);
+    Route::get('/leaves/{leave}', [LeaveController::class, 'show']);
+    Route::post('/leaves/{leave}/approve', [LeaveController::class, 'approve']);
+    Route::post('/leaves/{leave}/reject', [LeaveController::class, 'reject']);
+    Route::delete('/leaves/{leave}', [LeaveController::class, 'destroy']);
+    Route::get('/leaves/attendance/report', [LeaveController::class, 'attendanceReport']);
+
+    Route::get('/hrm/summary', [HrmController::class, 'summary']);
     Route::get('/hrm/attendances', [HrmController::class, 'attendances']);
     Route::post('/hrm/clock-in', [HrmController::class, 'clockIn']);
     Route::get('/hrm/payrolls', [HrmController::class, 'payrolls']);

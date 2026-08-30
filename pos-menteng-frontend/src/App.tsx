@@ -8,11 +8,13 @@ import Pos from './pages/Pos';
 import Inventory from './pages/Inventory';
 import History from './pages/History';
 import RawMaterials from './pages/RawMaterials';
+import RawMaterialImport from './pages/RawMaterialImport';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Accounting from './pages/Accounting';
 import Customers from './pages/Customer';
 import Hrm from './pages/Hrm';
+import Employees from './pages/Employees';
 
 const AxiosInterceptor = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
@@ -73,10 +75,12 @@ function App() {
         <Route path="/inventory" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <Inventory /> </ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <History /> </ProtectedRoute>} />
         <Route path="/raw-materials" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <RawMaterials /> </ProtectedRoute>} />
+        <Route path="/raw-materials/import" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <RawMaterialImport /> </ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <Dashboard/> </ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Users /></ProtectedRoute>} />
         <Route path ="/accounting" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Accounting /></ProtectedRoute>} />
         <Route path ="/customers" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Customers /></ProtectedRoute>} />
+        <Route path="/employees" element={<ProtectedRoute allowedRoles={['developer', 'admin', 'owner', 'manager']}><Employees /></ProtectedRoute>} />
         <Route path="/hrm" element={<ProtectedRoute allowedRoles={['developer', 'admin', 'owner', 'manager']}><Hrm /></ProtectedRoute>} />
       </Routes>
       </AxiosInterceptor>

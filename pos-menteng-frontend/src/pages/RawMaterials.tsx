@@ -208,9 +208,14 @@ const [receiptFile, setReceiptFile] = useState<File | null>(null);
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-20 bg-white border-b border-stone-200 flex items-center justify-between px-8 shadow-sm">
           <h1 className="text-xl font-bold text-stone-800">Stok Bahan Baku & Dapur</h1>
-          <button onClick={openAddModal} className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2.5 rounded-xl font-bold transition shadow-md">
-            + Tambah Bahan
-          </button>
+          <div className="flex gap-3">
+            <button onClick={() => navigate('/raw-materials/import')} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold transition shadow-md">
+              📥 Import Excel
+            </button>
+            <button onClick={openAddModal} className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2.5 rounded-xl font-bold transition shadow-md">
+              + Tambah Bahan
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-8">
