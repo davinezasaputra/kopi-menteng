@@ -2,6 +2,10 @@
 
 namespace App\Models;
 
+use App\Domain\Organization\Models\Branch;
+use App\Domain\Organization\Models\Company;
+use App\Domain\Organization\Models\Tenant;
+use App\Domain\Organization\Models\Warehouse;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +15,10 @@ class Shift extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'tenant_id',
+        'company_id',
+        'branch_id',
+        'warehouse_id',
         'user_id',
         'start_time',
         'end_time',
@@ -28,7 +36,28 @@ class Shift extends Model
         'actual_ending_cash' => 'decimal:2',
     ];
 
-    public function user(){
+    public function user()
+    {
         return $this->belongsTo(User::class);
+    }
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 }
