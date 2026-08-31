@@ -44,9 +44,6 @@ return new class extends Migration
                 DB::table('role_permissions')->updateOrInsert([
                     'role_id' => $roleId,
                     'permission_id' => $permissionId,
-                ], [
-                    'created_at' => now(),
-                    'updated_at' => now(),
                 ]);
             }
         }
