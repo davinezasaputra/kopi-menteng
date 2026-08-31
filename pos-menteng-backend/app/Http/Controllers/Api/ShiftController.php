@@ -50,17 +50,18 @@ class ShiftController extends Controller
 
         $data = $request->validate([
             'starting_cash' => ['required','numeric','min:0'],
-            'warehouse_id' => ['required','integer','exists:warehouses,id'],
+            'warehouse_id' => ['nullable','integer','exists:warehouses,id'],
         ]);
 
-        $warehouse = Warehouse::query()
-            ->whereKey($data['warehouse_id'])
-            ->where('branch_id', $this->context->branchId())
-            ->first();
+        $warehouseQuery = Warehouse::query()->where('branch_id', $this->context->branchId());
+
+        $warehouse = ! empty($data['warehouse_id'])
+            ? $warehouseQuery->whereKey($data['warehouse_id'])->first()
+            : $warehouseQuery->where('is_default', true)->first() ?? $warehouseQuery->first();
 
         if (! $warehouse) {
             throw ValidationException::withMessages([
-                'warehouse_id' => 'Warehouse is outside the active branch.',
+                'warehouse_id' => 'No active warehouse is configured for the branch.',
             ]);
         }
 
