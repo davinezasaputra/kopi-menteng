@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AccountingController;
+use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\EmployeeController;
@@ -42,21 +43,21 @@ Route::middleware('request.id')->group(function () {
         Route::middleware(['tenant', 'permission:users.user.view'])->group(function () {
             Route::get('/users', [UserController::class, 'index']);
         });
-
         Route::middleware(['tenant', 'permission:users.user.create'])->group(function () {
             Route::post('/users', [UserController::class, 'store']);
         });
-
         Route::middleware(['tenant', 'permission:users.user.delete'])->group(function () {
             Route::delete('/users/{id}', [UserController::class, 'destroy']);
         });
+        Route::middleware(['tenant', 'permission:audit.audit_log.view'])->group(function () {
+            Route::get('/audit-logs', [AuditLogController::class, 'index']);
+        });
 
         // Existing business endpoints remain under Sanctum during Phase 1.
-        // They will receive tenant/company/branch data scopes in the transactional migration phase.
+        // Transactional tenant/company/branch scopes are introduced per domain in later phases.
         Route::get('/shifts/status', [ShiftController::class, 'status']);
         Route::post('/shifts/open', [ShiftController::class, 'open']);
         Route::post('/shifts/close', [ShiftController::class, 'close']);
-
         Route::get('/products', [ProductController::class, 'index']);
         Route::post('/products', [ProductController::class, 'store']);
         Route::put('/products/{id}', [ProductController::class, 'update']);
@@ -66,7 +67,6 @@ Route::middleware('request.id')->group(function () {
         Route::get('/orders', [OrderController::class, 'index']);
         Route::get('/orders/history', [OrderController::class, 'history']);
         Route::post('/orders/checkout', [OrderController::class, 'checkout']);
-
         Route::get('/raw-materials', [RawMaterialController::class, 'index']);
         Route::post('/raw-materials', [RawMaterialController::class, 'store']);
         Route::put('/raw-materials/{id}', [RawMaterialController::class, 'update']);
@@ -75,27 +75,22 @@ Route::middleware('request.id')->group(function () {
         Route::post('/raw-materials/{id}/restock', [RawMaterialController::class, 'restock']);
         Route::post('/raw-materials/import', [ImportController::class, 'importRawMaterials']);
         Route::get('/raw-materials/import/template', [ImportController::class, 'downloadTemplate']);
-
         Route::get('/accounting/accounts', [AccountingController::class, 'accounts']);
         Route::post('/accounting/accounts', [AccountingController::class, 'addAccount']);
         Route::get('/accounting/journals', [AccountingController::class, 'journals']);
         Route::post('/accounting/journals', [AccountingController::class, 'addJournal']);
-
         Route::get('/finance/dashboard', [FinanceController::class, 'dashboard']);
         Route::post('/finance/expenses', [FinanceController::class, 'addExpense']);
         Route::get('/finance/export', [FinanceController::class, 'exportCsv']);
-
         Route::get('/customers', [CustomerController::class, 'index']);
         Route::post('/customers', [CustomerController::class, 'store']);
         Route::post('/customers/search', [CustomerController::class, 'search']);
-
         Route::get('/employees', [EmployeeController::class, 'index']);
         Route::get('/employees/search', [EmployeeController::class, 'search']);
         Route::get('/employees/{id}', [EmployeeController::class, 'show']);
         Route::post('/employees', [EmployeeController::class, 'store']);
         Route::put('/employees/{id}', [EmployeeController::class, 'update']);
         Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
-
         Route::get('/leaves', [LeaveController::class, 'index']);
         Route::post('/leaves', [LeaveController::class, 'store']);
         Route::get('/leaves/{leave}', [LeaveController::class, 'show']);
@@ -103,7 +98,6 @@ Route::middleware('request.id')->group(function () {
         Route::post('/leaves/{leave}/reject', [LeaveController::class, 'reject']);
         Route::delete('/leaves/{leave}', [LeaveController::class, 'destroy']);
         Route::get('/leaves/attendance/report', [LeaveController::class, 'attendanceReport']);
-
         Route::get('/hrm/summary', [HrmController::class, 'summary']);
         Route::get('/hrm/attendances', [HrmController::class, 'attendances']);
         Route::post('/hrm/clock-in', [HrmController::class, 'clockIn']);
