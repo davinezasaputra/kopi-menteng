@@ -7,6 +7,9 @@ use App\Domain\Purchasing\Models\PurchaseRequisition;
 use App\Domain\Purchasing\Models\Supplier;
 use App\Domain\Purchasing\Models\PurchaseOrder;
 use App\Domain\Purchasing\Models\GoodsReceipt;
+use App\Domain\Purchasing\Models\SupplierInvoice;
+use App\Domain\Purchasing\Models\SupplierPayment;
+use App\Domain\Purchasing\Services\AccountsPayableService;
 use App\Domain\Purchasing\Services\GoodsReceiptService;
 use App\Domain\Purchasing\Services\PurchaseOrderService;
 use App\Domain\Purchasing\Services\PurchaseRequisitionService;
@@ -22,6 +25,7 @@ class PurchasingController extends Controller
         private readonly PurchaseRequisitionService $requisitions,
         private readonly PurchaseOrderService $orders,
         private readonly GoodsReceiptService $goodsReceipts,
+        private readonly AccountsPayableService $accountsPayable,
     ) {}
 
     public function suppliers(): JsonResponse
@@ -218,6 +222,74 @@ class PurchasingController extends Controller
             'message'=>'Goods receipt posted.',
             'data'=>$receipt,
         ],201);
+    }
+
+    public function supplierInvoices(): JsonResponse
+    {
+        $rows = SupplierInvoice::query()
+            ->with(['supplier','order','goodsReceipt','creator'])
+            ->where('tenant_id',$this->context->tenantId())
+            ->where('company_id',$this->context->companyId())
+            ->where('branch_id',$this->context->branchId())
+            ->latest('id')
+            ->paginate(50);
+
+        return response()->json(['status'=>'success','data'=>$rows]);
+    }
+
+    public function storeSupplierInvoice(Request $request): JsonResponse
+    {
+        $data=$request->validate([
+            'goods_receipt_id'=>['required','integer','exists:goods_receipts,id'],
+            'invoice_number'=>['required','string','max:100'],
+            'invoice_date'=>['nullable','date'],
+            'due_date'=>['nullable','date','after_or_equal:invoice_date'],
+            'notes'=>['nullable','string'],
+        ]);
+
+        $invoice=$this->accountsPayable->createInvoice(
+            GoodsReceipt::findOrFail($data['goods_receipt_id']),
+            $data['invoice_number'],
+            $data['invoice_date'] ?? null,
+            $data['due_date'] ?? null,
+            $data['notes'] ?? null,
+        );
+
+        return response()->json(['status'=>'success','message'=>'Supplier invoice created.','data'=>$invoice],201);
+    }
+
+    public function supplierPayments(): JsonResponse
+    {
+        $rows = SupplierPayment::query()
+            ->with(['supplier','invoice','payer'])
+            ->where('tenant_id',$this->context->tenantId())
+            ->where('company_id',$this->context->companyId())
+            ->where('branch_id',$this->context->branchId())
+            ->latest('id')
+            ->paginate(50);
+
+        return response()->json(['status'=>'success','data'=>$rows]);
+    }
+
+    public function storeSupplierPayment(Request $request): JsonResponse
+    {
+        $data=$request->validate([
+            'supplier_invoice_id'=>['required','integer','exists:supplier_invoices,id'],
+            'amount'=>['required','numeric','gt:0'],
+            'method'=>['nullable','in:cash,bank_transfer,giro,other'],
+            'reference'=>['nullable','string','max:180'],
+            'notes'=>['nullable','string'],
+        ]);
+
+        $payment=$this->accountsPayable->pay(
+            SupplierInvoice::findOrFail($data['supplier_invoice_id']),
+            (float)$data['amount'],
+            $data['method'] ?? 'bank_transfer',
+            $data['reference'] ?? null,
+            $data['notes'] ?? null,
+        );
+
+        return response()->json(['status'=>'success','message'=>'Supplier payment recorded.','data'=>$payment],201);
     }
 
     public function cancelPurchaseOrder(int $order): JsonResponse
