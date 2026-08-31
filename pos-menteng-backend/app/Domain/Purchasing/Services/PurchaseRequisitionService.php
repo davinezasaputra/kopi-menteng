@@ -40,7 +40,21 @@ class PurchaseRequisitionService
 
         $normalized = $this->normalizeItems($items, $membership->tenant_id);
 
-        return DB::transaction(function () use ($membership, $warehouse, $normalized, $neededBy, $reason, $notes) {
+        $requestId = request()->attributes->get('request_id');
+
+        return DB::transaction(function () use ($membership, $warehouse, $normalized, $neededBy, $reason, $notes, $requestId) {
+            if ($requestId) {
+                $existing = PurchaseRequisition::query()
+                    ->where('tenant_id', $membership->tenant_id)
+                    ->where('request_id', $requestId)
+                    ->with(['warehouse','items.product','requester','submitter'])
+                    ->first();
+
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
             $requisition = PurchaseRequisition::create([
                 'tenant_id' => $membership->tenant_id,
                 'company_id' => $membership->company_id,
@@ -51,7 +65,7 @@ class PurchaseRequisitionService
                 'needed_by' => $neededBy,
                 'reason' => $reason,
                 'requested_by' => auth()->id(),
-                'request_id' => request()->attributes->get('request_id'),
+                'request_id' => $requestId,
                 'notes' => $notes,
             ]);
 
