@@ -14,7 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class InventoryService
 {
-    public function __construct(private readonly TenantContext $context) {}
+    public function __construct(
+        private readonly TenantContext $context,
+        private readonly InventoryCostingService $costing,
+    ) {}
 
     public function receive(Warehouse $warehouse, Product $product, float $quantity, float $unitCost = 0, ?string $referenceType = null, ?string $referenceId = null, ?string $notes = null): InventoryBalance
     {
