@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\HrmController;
 use App\Http\Controllers\Api\ImportController;
+use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
@@ -63,7 +64,6 @@ Route::middleware('request.id')->group(function () {
             Route::get('/audit-logs', [AuditLogController::class, 'index']);
         });
 
-        // Core business domains requiring a valid ERP tenant context.
         Route::middleware('tenant')->group(function () {
             Route::get('/shifts/status', [ShiftController::class, 'status']);
             Route::post('/shifts/open', [ShiftController::class, 'open']);
@@ -80,6 +80,17 @@ Route::middleware('request.id')->group(function () {
             Route::get('/orders', [OrderController::class, 'index']);
             Route::get('/orders/history', [OrderController::class, 'history']);
             Route::post('/orders/checkout', [OrderController::class, 'checkout']);
+
+            Route::get('/inventory/balances', [InventoryController::class, 'balances'])
+                ->middleware('permission:inventory.stock.view');
+            Route::get('/inventory/movements', [InventoryController::class, 'movements'])
+                ->middleware('permission:inventory.stock.view');
+            Route::post('/inventory/receive', [InventoryController::class, 'receive'])
+                ->middleware('permission:inventory.stock.adjust');
+            Route::post('/inventory/issue', [InventoryController::class, 'issue'])
+                ->middleware('permission:inventory.stock.adjust');
+            Route::post('/inventory/adjust', [InventoryController::class, 'adjust'])
+                ->middleware('permission:inventory.stock.adjust');
 
             Route::get('/raw-materials', [RawMaterialController::class, 'index']);
             Route::post('/raw-materials', [RawMaterialController::class, 'store']);
