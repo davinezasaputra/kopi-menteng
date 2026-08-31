@@ -63,55 +63,67 @@ Route::middleware('request.id')->group(function () {
             Route::get('/audit-logs', [AuditLogController::class, 'index']);
         });
 
-        Route::get('/shifts/status', [ShiftController::class, 'status']);
-        Route::post('/shifts/open', [ShiftController::class, 'open']);
-        Route::post('/shifts/close', [ShiftController::class, 'close']);
-        Route::get('/products', [ProductController::class, 'index']);
-        Route::post('/products', [ProductController::class, 'store']);
-        Route::put('/products/{id}', [ProductController::class, 'update']);
-        Route::delete('/products/{id}', [ProductController::class, 'destroy']);
-        Route::post('/products/{id}/recipe', [ProductController::class, 'syncRecipe']);
-        Route::get('/categories', [CategoriesController::class, 'index']);
-        Route::get('/orders', [OrderController::class, 'index']);
-        Route::get('/orders/history', [OrderController::class, 'history']);
-        Route::post('/orders/checkout', [OrderController::class, 'checkout']);
-        Route::get('/raw-materials', [RawMaterialController::class, 'index']);
-        Route::post('/raw-materials', [RawMaterialController::class, 'store']);
-        Route::put('/raw-materials/{id}', [RawMaterialController::class, 'update']);
-        Route::delete('/raw-materials/{id}', [RawMaterialController::class, 'destroy']);
-        Route::put('/raw-materials/{id}/toggle-request', [RawMaterialController::class, 'toggleShoppingRequest']);
-        Route::post('/raw-materials/{id}/restock', [RawMaterialController::class, 'restock']);
-        Route::post('/raw-materials/import', [ImportController::class, 'importRawMaterials']);
-        Route::get('/raw-materials/import/template', [ImportController::class, 'downloadTemplate']);
-        Route::get('/accounting/accounts', [AccountingController::class, 'accounts']);
-        Route::post('/accounting/accounts', [AccountingController::class, 'addAccount']);
-        Route::get('/accounting/journals', [AccountingController::class, 'journals']);
-        Route::post('/accounting/journals', [AccountingController::class, 'addJournal']);
-        Route::get('/finance/dashboard', [FinanceController::class, 'dashboard']);
-        Route::post('/finance/expenses', [FinanceController::class, 'addExpense']);
-        Route::get('/finance/export', [FinanceController::class, 'exportCsv']);
-        Route::get('/customers', [CustomerController::class, 'index']);
-        Route::post('/customers', [CustomerController::class, 'store']);
-        Route::post('/customers/search', [CustomerController::class, 'search']);
-        Route::get('/employees', [EmployeeController::class, 'index']);
-        Route::get('/employees/search', [EmployeeController::class, 'search']);
-        Route::get('/employees/{id}', [EmployeeController::class, 'show']);
-        Route::post('/employees', [EmployeeController::class, 'store']);
-        Route::put('/employees/{id}', [EmployeeController::class, 'update']);
-        Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
-        Route::get('/leaves', [LeaveController::class, 'index']);
-        Route::post('/leaves', [LeaveController::class, 'store']);
-        Route::get('/leaves/{leave}', [LeaveController::class, 'show']);
-        Route::post('/leaves/{leave}/approve', [LeaveController::class, 'approve']);
-        Route::post('/leaves/{leave}/reject', [LeaveController::class, 'reject']);
-        Route::delete('/leaves/{leave}', [LeaveController::class, 'destroy']);
-        Route::get('/leaves/attendance/report', [LeaveController::class, 'attendanceReport']);
-        Route::get('/hrm/summary', [HrmController::class, 'summary']);
-        Route::get('/hrm/attendances', [HrmController::class, 'attendances']);
-        Route::post('/hrm/clock-in', [HrmController::class, 'clockIn']);
-        Route::get('/hrm/payrolls', [HrmController::class, 'payrolls']);
-        Route::post('/hrm/payrolls', [HrmController::class, 'generatePayroll']);
-        Route::put('/hrm/payrolls/{id}/pay', [HrmController::class, 'paySalary']);
+        // Core business domains requiring a valid ERP tenant context.
+        Route::middleware('tenant')->group(function () {
+            Route::get('/shifts/status', [ShiftController::class, 'status']);
+            Route::post('/shifts/open', [ShiftController::class, 'open']);
+            Route::post('/shifts/close', [ShiftController::class, 'close']);
+
+            Route::get('/products', [ProductController::class, 'index']);
+            Route::post('/products', [ProductController::class, 'store']);
+            Route::put('/products/{id}', [ProductController::class, 'update']);
+            Route::delete('/products/{id}', [ProductController::class, 'destroy']);
+            Route::post('/products/{id}/recipe', [ProductController::class, 'syncRecipe']);
+
+            Route::get('/categories', [CategoriesController::class, 'index']);
+
+            Route::get('/orders', [OrderController::class, 'index']);
+            Route::get('/orders/history', [OrderController::class, 'history']);
+            Route::post('/orders/checkout', [OrderController::class, 'checkout']);
+
+            Route::get('/raw-materials', [RawMaterialController::class, 'index']);
+            Route::post('/raw-materials', [RawMaterialController::class, 'store']);
+            Route::put('/raw-materials/{id}', [RawMaterialController::class, 'update']);
+            Route::delete('/raw-materials/{id}', [RawMaterialController::class, 'destroy']);
+            Route::put('/raw-materials/{id}/toggle-request', [RawMaterialController::class, 'toggleShoppingRequest']);
+            Route::post('/raw-materials/{id}/restock', [RawMaterialController::class, 'restock']);
+            Route::post('/raw-materials/import', [ImportController::class, 'importRawMaterials']);
+            Route::get('/raw-materials/import/template', [ImportController::class, 'downloadTemplate']);
+
+            Route::get('/accounting/accounts', [AccountingController::class, 'accounts']);
+            Route::post('/accounting/accounts', [AccountingController::class, 'addAccount']);
+            Route::get('/accounting/journals', [AccountingController::class, 'journals']);
+            Route::post('/accounting/journals', [AccountingController::class, 'addJournal']);
+            Route::get('/finance/dashboard', [FinanceController::class, 'dashboard']);
+            Route::post('/finance/expenses', [FinanceController::class, 'addExpense']);
+            Route::get('/finance/export', [FinanceController::class, 'exportCsv']);
+
+            Route::get('/customers', [CustomerController::class, 'index']);
+            Route::post('/customers', [CustomerController::class, 'store']);
+            Route::post('/customers/search', [CustomerController::class, 'search']);
+
+            Route::get('/employees', [EmployeeController::class, 'index']);
+            Route::get('/employees/search', [EmployeeController::class, 'search']);
+            Route::get('/employees/{id}', [EmployeeController::class, 'show']);
+            Route::post('/employees', [EmployeeController::class, 'store']);
+            Route::put('/employees/{id}', [EmployeeController::class, 'update']);
+            Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
+
+            Route::get('/leaves', [LeaveController::class, 'index']);
+            Route::post('/leaves', [LeaveController::class, 'store']);
+            Route::get('/leaves/{leave}', [LeaveController::class, 'show']);
+            Route::post('/leaves/{leave}/approve', [LeaveController::class, 'approve']);
+            Route::post('/leaves/{leave}/reject', [LeaveController::class, 'reject']);
+            Route::delete('/leaves/{leave}', [LeaveController::class, 'destroy']);
+            Route::get('/leaves/attendance/report', [LeaveController::class, 'attendanceReport']);
+
+            Route::get('/hrm/summary', [HrmController::class, 'summary']);
+            Route::get('/hrm/attendances', [HrmController::class, 'attendances']);
+            Route::post('/hrm/clock-in', [HrmController::class, 'clockIn']);
+            Route::get('/hrm/payrolls', [HrmController::class, 'payrolls']);
+            Route::post('/hrm/payrolls', [HrmController::class, 'generatePayroll']);
+            Route::put('/hrm/payrolls/{id}/pay', [HrmController::class, 'paySalary']);
+        });
     });
 });
 
