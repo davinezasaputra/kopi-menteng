@@ -4,8 +4,6 @@ namespace App\Domain\Inventory\Services;
 
 use App\Domain\Inventory\Models\InventoryBalance;
 use App\Domain\Inventory\Models\StockMovement;
-use App\Domain\Organization\Models\Branch;
-use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Warehouse;
 use App\Models\Product;
 use App\Support\Tenancy\TenantContext;
@@ -38,7 +36,7 @@ class InventoryService
         ?string $referenceId = null,
         ?string $notes = null,
     ): InventoryBalance {
-        return $this->move($warehouse, $product, -abs($quantity), 0, 'issue', $referenceType, $referenceId, $notes);
+        return $this->move($warehouse, $product, -abs($quantity), 0, 'sale_issue', $referenceType, $referenceId, $notes);
     }
 
     public function adjust(
@@ -48,7 +46,7 @@ class InventoryService
         float $unitCost = 0,
         ?string $notes = null,
     ): InventoryBalance {
-        if ((float) $quantityDelta === 0.0) {
+        if ($quantityDelta == 0.0) {
             throw ValidationException::withMessages(['quantity' => 'Adjustment quantity cannot be zero.']);
         }
 
@@ -75,20 +73,36 @@ class InventoryService
         ?string $notes,
     ): InventoryBalance {
         $membership = $this->context->membership();
+
         if (! $membership) {
-            throw ValidationException::withMessages(['context' => 'No active ERP context.']);
+            throw ValidationException::withMessages([
+                'context' => 'No active ERP context.',
+            ]);
         }
 
         if ((int) $warehouse->branch_id !== (int) $membership->branch_id) {
-            throw ValidationException::withMessages(['warehouse_id' => 'Warehouse is outside the active branch.']);
+            throw ValidationException::withMessages([
+                'warehouse_id' => 'Warehouse is outside the active branch.',
+            ]);
         }
 
         if ((int) $product->tenant_id !== (int) $membership->tenant_id) {
-            throw ValidationException::withMessages(['product_id' => 'Product is outside the active tenant.']);
+            throw ValidationException::withMessages([
+                'product_id' => 'Product is outside the active tenant.',
+            ]);
         }
 
-        return DB::transaction(function () use ($membership, $warehouse, $product, $delta, $unitCost, $movementType, $referenceType, $referenceId, $notes) {
-            /** @var InventoryBalance $balance */
+        return DB::transaction(function () use (
+            $membership,
+            $warehouse,
+            $product,
+            $delta,
+            $unitCost,
+            $movementType,
+            $referenceType,
+            $referenceId,
+            $notes,
+        ) {
             $balance = InventoryBalance::query()
                 ->where('warehouse_id', $warehouse->id)
                 ->where('product_id', $product->id)
@@ -120,7 +134,9 @@ class InventoryService
             if ($delta > 0 && $unitCost > 0) {
                 $oldValue = $before * (float) $balance->average_cost;
                 $newValue = $delta * $unitCost;
-                $balance->average_cost = ($oldValue + $newValue) / $after;
+                $balance->average_cost = $after > 0
+                    ? ($oldValue + $newValue) / $after
+                    : $unitCost;
             }
 
             $balance->quantity = $after;
