@@ -84,6 +84,11 @@ Route::middleware('request.id')->group(function () {
             Route::post('/purchasing/requisitions', [PurchasingController::class, 'storeRequisition'])->middleware('permission:purchasing.requisition.create');
             Route::post('/purchasing/requisitions/{requisition}/submit', [PurchasingController::class, 'submitRequisition'])->middleware('permission:purchasing.requisition.submit');
             Route::post('/purchasing/requisitions/{requisition}/cancel', [PurchasingController::class, 'cancelRequisition'])->middleware('permission:purchasing.requisition.cancel');
+            Route::get('/purchasing/orders', [PurchasingController::class, 'purchaseOrders'])->middleware('permission:purchasing.order.view');
+            Route::post('/purchasing/orders', [PurchasingController::class, 'storePurchaseOrder'])->middleware('permission:purchasing.order.create');
+            Route::post('/purchasing/orders/{order}/submit', [PurchasingController::class, 'submitPurchaseOrder'])->middleware('permission:purchasing.order.submit');
+            Route::post('/purchasing/orders/{order}/approve', [PurchasingController::class, 'approvePurchaseOrder'])->middleware('permission:purchasing.order.approve');
+            Route::post('/purchasing/orders/{order}/cancel', [PurchasingController::class, 'cancelPurchaseOrder'])->middleware('permission:purchasing.order.cancel');
             Route::post('/inventory/receive', [InventoryController::class, 'receive'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/issue', [InventoryController::class, 'issue'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/adjust', [InventoryController::class, 'adjust'])->middleware('permission:inventory.stock.adjust');
