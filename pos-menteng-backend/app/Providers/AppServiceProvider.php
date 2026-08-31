@@ -12,10 +12,16 @@ use App\Observers\OpExObserver;
 use App\Observers\PayrollObserver;
 use App\Observers\RestockObserver;
 use App\Observers\SaleObserver;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        $this->app->scoped(TenantContext::class, fn () => new TenantContext());
+    }
+
     public function boot(): void
     {
         Order::observe(SaleObserver::class);
