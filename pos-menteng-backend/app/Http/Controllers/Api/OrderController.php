@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Inventory\Services\InventoryService;
+use App\Domain\Organization\Models\Warehouse;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Order;
@@ -17,39 +19,66 @@ use Midtrans\Snap;
 
 class OrderController extends Controller
 {
+    public function __construct(
+        private readonly TenantContext $context,
+        private readonly InventoryService $inventory,
+    ) {
+    }
+
     public function index(Request $request)
     {
-        $context = app(TenantContext::class);
         $today = Carbon::today();
 
         $orders = Order::with('items.product')
-            ->where('tenant_id', $context->tenantId())
-            ->where('company_id', $context->companyId())
-            ->where('branch_id', $context->branchId())
+            ->where('tenant_id', $this->context->tenantId())
+            ->where('company_id', $this->context->companyId())
+            ->where('branch_id', $this->context->branchId())
             ->whereDate('created_at', $today)
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $orders,
-        ]);
+        return response()->json(['status' => 'success', 'data' => $orders]);
     }
 
     public function checkout(Request $request)
     {
         $user = $request->user();
-        $context = app(TenantContext::class);
-        $tenantId = $context->tenantId();
-        $companyId = $context->companyId();
-        $branchId = $context->branchId();
+        $tenantId = $this->context->tenantId();
+        $companyId = $this->context->companyId();
+        $branchId = $this->context->branchId();
 
-        $activeShift = Shift::where('user_id', $user->id)->where('status', 'open')->first();
-        if (!$activeShift) {
+        $activeShift = Shift::query()
+            ->where('tenant_id', $tenantId)
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->where('user_id', $user->id)
+            ->where('status', 'open')
+            ->first();
+
+        if (! $activeShift) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Anda harus membuka shift terlebih dahulu.',
             ], 403);
+        }
+
+        if (! $activeShift->warehouse_id) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Shift belum terhubung ke warehouse.',
+            ], 422);
+        }
+
+        $warehouse = Warehouse::query()
+            ->whereKey($activeShift->warehouse_id)
+            ->where('branch_id', $branchId)
+            ->first();
+
+        if (! $warehouse) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Warehouse shift tidak valid untuk branch aktif.',
+            ], 422);
         }
 
         $validated = $request->validate([
@@ -70,20 +99,15 @@ class OrderController extends Controller
             $processedItems = [];
 
             foreach ($validated['items'] as $item) {
-                $product = Product::where('tenant_id', $tenantId)
+                $product = Product::query()
+                    ->where('tenant_id', $tenantId)
                     ->lockForUpdate()
                     ->with('rawMaterials')
                     ->findOrFail($item['product_id']);
 
-                if ($product->stock < $item['quantity']) {
-                    throw new \Exception("Stok {$product->name} tidak cukup. Sisa: {$product->stock}");
-                }
-
-                $itemSubtotal = $product->price * $item['quantity'];
+                $itemSubtotal = (float) $product->price * $item['quantity'];
                 $subtotal += $itemSubtotal;
                 $itemCogs = 0;
-
-                $product->decrement('stock', $item['quantity']);
 
                 foreach ($product->rawMaterials as $material) {
                     $totalMaterialNeeded = $material->pivot->quantity_needed * $item['quantity'];
@@ -111,27 +135,47 @@ class OrderController extends Controller
                 ];
             }
 
-            $rawTotal = $subtotal;
             $discount = 0;
             $customer = null;
 
-            if (!empty($validated['customer_id'])) {
-                $customer = Customer::where('tenant_id', $tenantId)
+            if (! empty($validated['customer_id'])) {
+                $customer = Customer::query()
+                    ->where('tenant_id', $tenantId)
                     ->whereKey($validated['customer_id'])
                     ->first();
 
                 if ($customer) {
-                    if ($customer->tier === 'vip') $discount = $rawTotal * 0.10;
-                    elseif ($customer->tier === 'gold') $discount = $rawTotal * 0.05;
+                    if ($customer->tier === 'vip') {
+                        $discount = $subtotal * 0.10;
+                    } elseif ($customer->tier === 'gold') {
+                        $discount = $subtotal * 0.05;
+                    }
                 }
             }
 
-            $total = $rawTotal - $discount;
+            $total = $subtotal - $discount;
             $basePrice = $total / 1.11;
             $tax = $total - $basePrice;
             $netProfit = $basePrice - $totalCogs;
-
             $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
+
+            // Inventory is part of the same DB transaction as the sale.
+            // If any product cannot be issued from the shift warehouse,
+            // the complete checkout is rolled back.
+            foreach ($processedItems as $processedItem) {
+                $product = Product::query()
+                    ->where('tenant_id', $tenantId)
+                    ->findOrFail($processedItem['product_id']);
+
+                $this->inventory->issue(
+                    $warehouse,
+                    $product,
+                    (float) $processedItem['quantity'],
+                    'pos_order',
+                    $invoiceNumber,
+                    'POS sale stock issue'
+                );
+            }
 
             $order = Order::create([
                 'tenant_id' => $tenantId,
@@ -207,18 +251,13 @@ class OrderController extends Controller
 
     public function history(Request $request)
     {
-        $context = app(TenantContext::class);
-
         $orders = Order::with(['items.product'])
-            ->where('tenant_id', $context->tenantId())
-            ->where('company_id', $context->companyId())
-            ->where('branch_id', $context->branchId())
+            ->where('tenant_id', $this->context->tenantId())
+            ->where('company_id', $this->context->companyId())
+            ->where('branch_id', $this->context->branchId())
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $orders,
-        ]);
+        return response()->json(['status' => 'success', 'data' => $orders]);
     }
 }
