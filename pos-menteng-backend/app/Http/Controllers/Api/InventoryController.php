@@ -65,7 +65,7 @@ class InventoryController extends Controller
             'warehouse_id' => ['required','integer','exists:warehouses,id'],
             'product_id' => ['required','exists:products,id'],
             'quantity' => ['required','numeric','gt:0'],
-            'unit_cost' => ['nullable','numeric','gte:0'],
+            'unit_cost' => ['required','numeric','gte:0'],
             'reference_type' => ['nullable','string','max:180'],
             'reference_id' => ['nullable','string','max:100'],
             'notes' => ['nullable','string'],
