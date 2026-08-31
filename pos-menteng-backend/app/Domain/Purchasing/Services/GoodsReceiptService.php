@@ -7,6 +7,7 @@ use App\Domain\Core\Services\DocumentNumberService;
 use App\Domain\Inventory\Models\InventoryBalance;
 use App\Domain\Inventory\Services\InventoryService;
 use App\Domain\Purchasing\Models\{GoodsReceipt,GoodsReceiptItem,PurchaseOrder,PurchaseOrderItem};
+use App\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
@@ -136,10 +137,6 @@ class GoodsReceiptService
                     'line_value'=>round($item['quantity'] * $item['unit_cost'],2),
                 ]);
             }
-
-            $allReceived = $lockedOrder->items->every(
-                fn (PurchaseOrderItem $item) => (float)$item->received_quantity + (float)collect($normalized)->firstWhere('purchase_order_item_id',$item->id)['quantity'] ?? (float)$item->received_quantity >= (float)$item->quantity
-            );
 
             $lockedOrder->status = $this->deriveOrderStatus($lockedOrder->fresh('items'));
             $lockedOrder->save();
