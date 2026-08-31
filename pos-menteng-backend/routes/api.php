@@ -16,7 +16,7 @@ use App\Http\Controllers\Api\RawMaterialController;
 use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\OrganizationProvisioningController;
-use App\Http\Controllers\CategoriesController;
+use App\Http\Controllers\Api\CategoriesController;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -41,14 +41,12 @@ Route::middleware('request.id')->group(function () {
             ]);
         })->middleware('tenant');
 
-        // Platform provisioning: developer-only during Phase 1 bootstrap.
-        // These endpoints intentionally sit outside tenant context because
-        // creating a tenant is a platform-level operation.
         Route::prefix('platform/organization')->middleware('platform.admin')->group(function () {
             Route::post('/tenants', [OrganizationProvisioningController::class, 'storeTenant']);
             Route::post('/companies', [OrganizationProvisioningController::class, 'storeCompany']);
             Route::post('/branches', [OrganizationProvisioningController::class, 'storeBranch']);
             Route::post('/warehouses', [OrganizationProvisioningController::class, 'storeWarehouse']);
+            Route::post('/tenant-admins', [OrganizationProvisioningController::class, 'storeTenantAdmin']);
             Route::get('/tenants/{tenant}', [OrganizationProvisioningController::class, 'showTenant']);
         });
 
@@ -65,8 +63,6 @@ Route::middleware('request.id')->group(function () {
             Route::get('/audit-logs', [AuditLogController::class, 'index']);
         });
 
-        // Existing business endpoints remain under Sanctum during Phase 1.
-        // Transactional tenant/company/branch scopes are introduced per domain in later phases.
         Route::get('/shifts/status', [ShiftController::class, 'status']);
         Route::post('/shifts/open', [ShiftController::class, 'open']);
         Route::post('/shifts/close', [ShiftController::class, 'close']);
