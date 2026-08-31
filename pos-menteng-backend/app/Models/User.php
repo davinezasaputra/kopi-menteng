@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Domain\Identity\Models\Membership;
-use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Tenant;
@@ -46,11 +45,5 @@ class User extends Authenticatable
             ->pluck('role.permissions')
             ->flatten()
             ->contains('name', $permission);
-    }
-
-    public function roles()
-    {
-        return Role::query()
-            ->whereHas('memberships', fn ($q) => $q->where('user_id', $this->id)->where('status', 'active'));
     }
 }
