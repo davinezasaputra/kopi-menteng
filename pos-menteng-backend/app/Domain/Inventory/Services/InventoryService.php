@@ -96,7 +96,7 @@ class InventoryService
 
             $sourceAfter = $sourceBefore - $quantity;
             $destinationAfter = $destinationBefore + $quantity;
-            $cost = $unitCost > 0 ? $unitCost : (float) $source->average_cost;
+            $cost = $this->costing->transferUnitCost($source, $unitCost);
 
             $source->quantity = $sourceAfter;
             $source->available_quantity = $sourceAfter - (float) $source->reserved_quantity;
@@ -213,10 +213,21 @@ class InventoryService
             if ($after < 0) {
                 throw ValidationException::withMessages(['quantity' => "Insufficient stock. Available: {$before}."]);
             }
-            if ($delta > 0 && $unitCost > 0) {
-                $oldValue = $before * (float) $balance->average_cost;
-                $newValue = $delta * $unitCost;
-                $balance->average_cost = $after > 0 ? ($oldValue + $newValue) / $after : $unitCost;
+            $movementCost = $delta < 0
+                ? $this->costing->issueUnitCost($balance)
+                : $unitCost;
+
+            if ($delta > 0) {
+                if ($unitCost <= 0) {
+                    throw ValidationException::withMessages(['unit_cost' => 'Unit cost is required for stock receipts and positive adjustments.']);
+                }
+
+                $balance->average_cost = $this->costing->receiptAverageCost(
+                    currentQuantity: $before,
+                    currentAverageCost: (float) $balance->average_cost,
+                    receivedQuantity: $delta,
+                    receivedUnitCost: $unitCost,
+                );
                 $balance->last_cost = $unitCost;
             }
             $balance->quantity = $after;
@@ -231,7 +242,7 @@ class InventoryService
                 'product_id' => $product->id,
                 'movement_type' => $movementType,
                 'quantity' => $delta,
-                'unit_cost' => $unitCost,
+                'unit_cost' => $movementCost,
                 'balance_before' => $before,
                 'balance_after' => $after,
                 'reference_type' => $referenceType,
