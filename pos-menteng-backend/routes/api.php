@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\HrmController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\InventoryController;
+use App\Http\Controllers\Api\InventoryOpnameController;
 use App\Http\Controllers\Api\InventoryTransferController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\OrderController;
@@ -95,6 +96,18 @@ Route::middleware('request.id')->group(function () {
             Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])
                 ->middleware('permission:inventory.stock.view');
             Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])
+                ->middleware('permission:inventory.stock.adjust');
+            Route::get('/inventory/opnames', [InventoryOpnameController::class, 'index'])
+                ->middleware('permission:inventory.stock.view');
+            Route::post('/inventory/opnames', [InventoryOpnameController::class, 'store'])
+                ->middleware('permission:inventory.stock.adjust');
+            Route::get('/inventory/opnames/{opname}', [InventoryOpnameController::class, 'show'])
+                ->middleware('permission:inventory.stock.view');
+            Route::post('/inventory/opnames/{opname}/count', [InventoryOpnameController::class, 'count'])
+                ->middleware('permission:inventory.stock.adjust');
+            Route::post('/inventory/opnames/{opname}/approve', [InventoryOpnameController::class, 'approve'])
+                ->middleware('permission:inventory.stock.adjust');
+            Route::post('/inventory/opnames/{opname}/cancel', [InventoryOpnameController::class, 'cancel'])
                 ->middleware('permission:inventory.stock.adjust');
 
             Route::get('/raw-materials', [RawMaterialController::class, 'index']);
