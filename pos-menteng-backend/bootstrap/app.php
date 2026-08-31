@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AddRequestId;
 use App\Http\Middleware\RequirePermission;
+use App\Http\Middleware\RequirePlatformAdmin;
 use App\Http\Middleware\ResolveTenantContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'request.id' => AddRequestId::class,
             'tenant' => ResolveTenantContext::class,
             'permission' => RequirePermission::class,
+            'platform.admin' => RequirePlatformAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
