@@ -52,32 +52,63 @@ class InventoryReservationController extends Controller
             $data['notes'] ?? null,
         );
 
-        return response()->json(['status' => 'success', 'message' => 'Stock reserved.', 'data' => $reservation], 201);
+        $status = $reservation->wasRecentlyCreated ? 201 : 200;
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $reservation->wasRecentlyCreated ? 'Stock reserved.' : 'Existing reservation returned for request ID.',
+            'data' => $reservation,
+        ], $status);
     }
 
-    public function show(int $opname): JsonResponse
+    public function show(int $reservation): JsonResponse
     {
-        $reservation = InventoryReservation::query()
+        $row = InventoryReservation::query()
             ->with(['warehouse', 'items.product', 'creator', 'releaser', 'fulfiller'])
             ->where('tenant_id', $this->context->tenantId())
             ->where('company_id', $this->context->companyId())
             ->where('branch_id', $this->context->branchId())
-            ->findOrFail($opname);
+            ->findOrFail($reservation);
 
-        return response()->json(['status' => 'success', 'data' => $reservation]);
+        return response()->json(['status' => 'success', 'data' => $row]);
     }
 
     public function release(int $reservation): JsonResponse
     {
-        $row = InventoryReservation::findOrFail($reservation);
+        $row = InventoryReservation::query()
+            ->where('tenant_id', $this->context->tenantId())
+            ->where('company_id', $this->context->companyId())
+            ->where('branch_id', $this->context->branchId())
+            ->findOrFail($reservation);
+
         $result = $this->service->release($row);
+
         return response()->json(['status' => 'success', 'message' => 'Reservation released.', 'data' => $result]);
+    }
+
+    public function expire(int $reservation): JsonResponse
+    {
+        $row = InventoryReservation::query()
+            ->where('tenant_id', $this->context->tenantId())
+            ->where('company_id', $this->context->companyId())
+            ->where('branch_id', $this->context->branchId())
+            ->findOrFail($reservation);
+
+        $result = $this->service->expire($row);
+
+        return response()->json(['status' => 'success', 'message' => 'Reservation expired.', 'data' => $result]);
     }
 
     public function fulfill(int $reservation): JsonResponse
     {
-        $row = InventoryReservation::findOrFail($reservation);
+        $row = InventoryReservation::query()
+            ->where('tenant_id', $this->context->tenantId())
+            ->where('company_id', $this->context->companyId())
+            ->where('branch_id', $this->context->branchId())
+            ->findOrFail($reservation);
+
         $result = $this->service->fulfill($row);
+
         return response()->json(['status' => 'success', 'message' => 'Reservation fulfilled.', 'data' => $result]);
     }
 }
