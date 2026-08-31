@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\HrmController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\InventoryController;
+use App\Http\Controllers\Api\InventoryTransferController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
@@ -90,6 +91,10 @@ Route::middleware('request.id')->group(function () {
             Route::post('/inventory/issue', [InventoryController::class, 'issue'])
                 ->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/adjust', [InventoryController::class, 'adjust'])
+                ->middleware('permission:inventory.stock.adjust');
+            Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])
+                ->middleware('permission:inventory.stock.view');
+            Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])
                 ->middleware('permission:inventory.stock.adjust');
 
             Route::get('/raw-materials', [RawMaterialController::class, 'index']);
