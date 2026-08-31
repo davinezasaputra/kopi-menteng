@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Audit\Services\AuditService;
 use App\Domain\Identity\Models\Membership;
 use App\Domain\Identity\Models\Role;
+use App\Domain\Organization\Models\Branch;
+use App\Domain\Organization\Models\Company;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -13,7 +16,7 @@ use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
         $tenantId = app(TenantContext::class)->tenantId();
         $users = User::query()
@@ -37,15 +40,16 @@ class UserController extends Controller
             'branch_id' => 'nullable|integer',
         ]);
 
-        $role = Role::query()
-            ->where('tenant_id', $context->tenantId())
-            ->where('code', $validated['role_code'])
-            ->firstOrFail();
-
+        $role = Role::query()->where('tenant_id', $context->tenantId())->where('code', $validated['role_code'])->firstOrFail();
         $companyId = $validated['company_id'] ?? $context->companyId();
         $branchId = $validated['branch_id'] ?? $context->branchId();
 
-        abort_unless($companyId === null || $role->tenant_id === $context->tenantId(), 403);
+        if ($companyId !== null) {
+            abort_unless(Company::query()->whereKey($companyId)->where('tenant_id', $context->tenantId())->exists(), 403);
+        }
+        if ($branchId !== null) {
+            abort_unless(Branch::query()->whereKey($branchId)->whereHas('company', fn ($q) => $q->where('tenant_id', $context->tenantId())->whereKey($companyId))->exists(), 403);
+        }
 
         $user = DB::transaction(function () use ($validated, $context, $role, $companyId, $branchId) {
             $user = User::create([
@@ -64,17 +68,15 @@ class UserController extends Controller
             ]);
 
             Membership::create([
-                'tenant_id' => $context->tenantId(),
-                'user_id' => $user->id,
-                'company_id' => $companyId,
-                'branch_id' => $branchId,
-                'role_id' => $role->id,
-                'status' => 'active',
-                'is_primary' => true,
+                'tenant_id' => $context->tenantId(), 'user_id' => $user->id,
+                'company_id' => $companyId, 'branch_id' => $branchId,
+                'role_id' => $role->id, 'status' => 'active', 'is_primary' => true,
             ]);
 
             return $user;
         });
+
+        app(AuditService::class)->record('created', 'users', $user, null, $user->only(['id','name','email']));
 
         return response()->json(['status' => 'success', 'data' => $user->only(['id','name','email'])], 201);
     }
@@ -90,7 +92,9 @@ class UserController extends Controller
 
         abort_if((int) $id === (int) auth()->id(), 403, 'You cannot remove your own active membership.');
 
+        $old = $membership->only(['tenant_id','user_id','company_id','branch_id','role_id','status']);
         $membership->update(['status' => 'inactive', 'is_primary' => false]);
+        app(AuditService::class)->record('membership_revoked', 'users', $membership, $old, $membership->only(['tenant_id','user_id','company_id','branch_id','role_id','status']));
 
         return response()->json(['status' => 'success', 'message' => 'User membership revoked.']);
     }
