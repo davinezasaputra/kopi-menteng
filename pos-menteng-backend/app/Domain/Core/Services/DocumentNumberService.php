@@ -14,28 +14,23 @@ class DocumentNumberService
         $period ??= now()->format('Ym');
 
         return DB::transaction(function () use ($documentType, $prefix, $period, $context) {
-            $sequence = DocumentSequence::query()
-                ->where('tenant_id', $context->tenantId())
-                ->where('company_id', $context->companyId())
-                ->where('branch_id', $context->branchId())
-                ->where('document_type', $documentType)
-                ->where('period', $period)
-                ->lockForUpdate()
-                ->first();
+            $scope = [
+                'tenant_id' => $context->tenantId(),
+                'company_id' => $context->companyId(),
+                'branch_id' => $context->branchId(),
+                'document_type' => $documentType,
+                'period' => $period,
+            ];
 
-            if (! $sequence) {
-                $sequence = DocumentSequence::create([
-                    'tenant_id' => $context->tenantId(),
-                    'company_id' => $context->companyId(),
-                    'branch_id' => $context->branchId(),
-                    'document_type' => $documentType,
-                    'prefix' => $prefix,
-                    'period' => $period,
-                    'next_number' => 1,
-                    'padding' => 6,
-                ]);
-            }
+            DB::table('document_sequences')->insertOrIgnore($scope + [
+                'prefix' => $prefix,
+                'next_number' => 1,
+                'padding' => 6,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
+            $sequence = DocumentSequence::query()->where($scope)->lockForUpdate()->firstOrFail();
             $number = $sequence->next_number;
             $sequence->increment('next_number');
 
