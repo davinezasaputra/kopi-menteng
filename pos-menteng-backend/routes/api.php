@@ -83,6 +83,7 @@ Route::middleware('request.id')->group(function () {
             Route::post('/inventory/reservations', [InventoryReservationController::class, 'store'])->middleware('permission:inventory.stock.adjust');
             Route::get('/inventory/reservations/{reservation}', [InventoryReservationController::class, 'show'])->middleware('permission:inventory.stock.view');
             Route::post('/inventory/reservations/{reservation}/release', [InventoryReservationController::class, 'release'])->middleware('permission:inventory.stock.adjust');
+            Route::post('/inventory/reservations/{reservation}/expire', [InventoryReservationController::class, 'expire'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/reservations/{reservation}/fulfill', [InventoryReservationController::class, 'fulfill'])->middleware('permission:inventory.stock.adjust');
 
             Route::get('/raw-materials', [RawMaterialController::class, 'index']);
