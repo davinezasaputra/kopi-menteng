@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\InventoryReservationController;
 use App\Http\Controllers\Api\InventoryTransferController;
+use App\Http\Controllers\Api\InventoryValuationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\OrganizationProvisioningController;
@@ -74,6 +75,7 @@ Route::middleware('request.id')->group(function () {
 
             Route::get('/inventory/balances', [InventoryController::class, 'balances'])->middleware('permission:inventory.stock.view');
             Route::get('/inventory/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.stock.view');
+            Route::get('/inventory/valuation', [InventoryValuationController::class, 'index'])->middleware('permission:inventory.stock.view');
             Route::post('/inventory/receive', [InventoryController::class, 'receive'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/issue', [InventoryController::class, 'issue'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/adjust', [InventoryController::class, 'adjust'])->middleware('permission:inventory.stock.adjust');
