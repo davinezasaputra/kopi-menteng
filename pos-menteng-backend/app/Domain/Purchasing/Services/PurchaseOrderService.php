@@ -61,7 +61,21 @@ class PurchaseOrderService
 
         $normalized = $this->normalizeItems($items, (int)$membership->tenant_id);
 
-        return DB::transaction(function () use ($membership,$supplier,$warehouse,$normalized,$requisition,$expectedDate,$discountAmount,$taxAmount,$notes) {
+        $requestId = request()->attributes->get('request_id');
+
+        return DB::transaction(function () use ($membership,$supplier,$warehouse,$normalized,$requisition,$expectedDate,$discountAmount,$taxAmount,$notes,$requestId) {
+            if ($requestId) {
+                $existing = PurchaseOrder::query()
+                    ->where('tenant_id', $membership->tenant_id)
+                    ->where('request_id', $requestId)
+                    ->with(['supplier','warehouse','requisition','items.product','creator','submitter','approver'])
+                    ->first();
+
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
             $subtotal = round(collect($normalized)->sum(fn ($i) => $i['quantity'] * $i['unit_cost']), 2);
             $grandTotal = round($subtotal - max(0,$discountAmount) + max(0,$taxAmount), 2);
 
@@ -81,7 +95,7 @@ class PurchaseOrderService
                 'tax_amount'=>max(0,$taxAmount),
                 'grand_total'=>$grandTotal,
                 'created_by'=>auth()->id(),
-                'request_id'=>request()->attributes->get('request_id'),
+                'request_id'=>$requestId,
                 'notes'=>$notes,
             ]);
 
