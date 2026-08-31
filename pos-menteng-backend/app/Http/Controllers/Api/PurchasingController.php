@@ -104,6 +104,88 @@ class PurchasingController extends Controller
         $row=PurchaseRequisition::findOrFail($requisition);
         return response()->json(['status'=>'success','message'=>'Purchase requisition cancelled.','data'=>$this->requisitions->cancel($row)]);
     }
+    public function purchaseOrders(): JsonResponse
+    {
+        $rows = PurchaseOrder::query()
+            ->with(['supplier','warehouse','requisition','items.product','creator','submitter','approver'])
+            ->where('tenant_id', $this->context->tenantId())
+            ->where('company_id', $this->context->companyId())
+            ->where('branch_id', $this->context->branchId())
+            ->latest('id')
+            ->paginate(50);
+
+        return response()->json(['status'=>'success','data'=>$rows]);
+    }
+
+    public function storePurchaseOrder(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'supplier_id' => ['required','integer','exists:suppliers,id'],
+            'warehouse_id' => ['required','integer','exists:warehouses,id'],
+            'purchase_requisition_id' => ['nullable','integer','exists:purchase_requisitions,id'],
+            'expected_date' => ['nullable','date','after_or_equal:today'],
+            'discount_amount' => ['nullable','numeric','gte:0'],
+            'tax_amount' => ['nullable','numeric','gte:0'],
+            'notes' => ['nullable','string'],
+            'items' => ['required','array','min:1'],
+            'items.*.product_id' => ['required','exists:products,id'],
+            'items.*.quantity' => ['required','numeric','gt:0'],
+            'items.*.unit_cost' => ['required','numeric','gte:0'],
+            'items.*.discount_amount' => ['nullable','numeric','gte:0'],
+            'items.*.tax_amount' => ['nullable','numeric','gte:0'],
+            'items.*.notes' => ['nullable','string'],
+        ]);
+
+        $order = $this->orders->create(
+            Supplier::findOrFail($data['supplier_id']),
+            Warehouse::findOrFail($data['warehouse_id']),
+            $data['items'],
+            isset($data['purchase_requisition_id'])
+                ? PurchaseRequisition::findOrFail($data['purchase_requisition_id'])
+                : null,
+            $data['expected_date'] ?? null,
+            (float)($data['discount_amount'] ?? 0),
+            (float)($data['tax_amount'] ?? 0),
+            $data['notes'] ?? null,
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Purchase order created.',
+            'data' => $order,
+        ], 201);
+    }
+
+    public function submitPurchaseOrder(int $order): JsonResponse
+    {
+        $row = PurchaseOrder::findOrFail($order);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Purchase order submitted.',
+            'data' => $this->orders->submit($row),
+        ]);
+    }
+
+    public function approvePurchaseOrder(int $order): JsonResponse
+    {
+        $row = PurchaseOrder::findOrFail($order);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Purchase order approved.',
+            'data' => $this->orders->approve($row),
+        ]);
+    }
+
+    public function cancelPurchaseOrder(int $order): JsonResponse
+    {
+        $row = PurchaseOrder::findOrFail($order);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Purchase order cancelled.',
+            'data' => $this->orders->cancel($row),
+        ]);
+    }
 }
-
-
