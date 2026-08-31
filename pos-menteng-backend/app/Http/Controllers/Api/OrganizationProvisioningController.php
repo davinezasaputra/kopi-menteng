@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Audit\Services\AuditService;
+use App\Domain\Identity\Models\Membership;
+use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Tenant;
 use App\Domain\Organization\Models\Warehouse;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class OrganizationProvisioningController extends Controller
@@ -96,6 +101,73 @@ class OrganizationProvisioningController extends Controller
         $data['is_default'] ??= false;
 
         return response()->json(['status'=>'success','data'=>Warehouse::create($data)], 201);
+    }
+
+    public function storeTenantAdmin(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'tenant_id' => ['required','integer','exists:tenants,id'],
+            'company_id' => ['required','integer','exists:companies,id'],
+            'branch_id' => ['required','integer','exists:branches,id'],
+            'name' => ['required','string','max:255'],
+            'email' => ['required','email','unique:users,email'],
+            'password' => ['required','string','min:8'],
+        ]);
+
+        $company = Company::query()
+            ->whereKey($data['company_id'])
+            ->where('tenant_id', $data['tenant_id'])
+            ->firstOrFail();
+
+        $branch = Branch::query()
+            ->whereKey($data['branch_id'])
+            ->where('company_id', $company->id)
+            ->firstOrFail();
+
+        $role = Role::query()
+            ->where('tenant_id', $data['tenant_id'])
+            ->where('code', 'tenant-admin')
+            ->firstOrFail();
+
+        $user = DB::transaction(function () use ($data, $role) {
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'role' => 'owner',
+                'default_tenant_id' => $data['tenant_id'],
+                'default_company_id' => $data['company_id'],
+                'default_branch_id' => $data['branch_id'],
+            ]);
+
+            Membership::create([
+                'tenant_id' => $data['tenant_id'],
+                'user_id' => $user->id,
+                'company_id' => $data['company_id'],
+                'branch_id' => $data['branch_id'],
+                'role_id' => $role->id,
+                'status' => 'active',
+                'is_primary' => true,
+            ]);
+
+            return $user;
+        });
+
+        app(AuditService::class)->record('created', 'identity', $user, null, $user->only(['id','name','email']));
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Tenant admin account created.',
+            'data' => [
+                'user' => $user->only(['id','name','email']),
+                'membership' => [
+                    'tenant_id' => $data['tenant_id'],
+                    'company_id' => $data['company_id'],
+                    'branch_id' => $data['branch_id'],
+                    'role_code' => $role->code,
+                ],
+            ],
+        ], 201);
     }
 
     public function showTenant(Request $request, int $tenant): JsonResponse
