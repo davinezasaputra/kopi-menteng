@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Inventory\Models\InventoryBalance;
+use App\Domain\Organization\Models\Warehouse;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
@@ -28,6 +31,8 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+        $context = app(TenantContext::class);
+
         $request->validate([
             'name' => 'required|string',
             'price' => 'required|numeric|min:0',
@@ -35,13 +40,39 @@ class ProductController extends Controller
             'category_id' => 'required|string',
         ]);
 
-        $product = Product::create([
-            'tenant_id' => app(TenantContext::class)->tenantId(),
-            'name' => $request->name,
-            'price' => $request->price,
-            'stock' => $request->stock,
-            'category_id' => $request->category_id,
-        ]);
+        $warehouse = Warehouse::query()
+            ->where('branch_id', $context->branchId())
+            ->where('is_default', true)
+            ->first() ?? Warehouse::query()->where('branch_id', $context->branchId())->first();
+
+        if (! $warehouse) {
+            throw ValidationException::withMessages([
+                'warehouse' => 'No warehouse is configured for the active branch.',
+            ]);
+        }
+
+        $product = DB::transaction(function () use ($request, $context, $warehouse) {
+            $product = Product::create([
+                'tenant_id' => $context->tenantId(),
+                'name' => $request->name,
+                'price' => $request->price,
+                'stock' => $request->stock,
+                'category_id' => $request->category_id,
+            ]);
+
+            InventoryBalance::create([
+                'tenant_id' => $context->tenantId(),
+                'company_id' => $context->companyId(),
+                'branch_id' => $context->branchId(),
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => (float) $request->stock,
+                'reserved_quantity' => 0,
+                'average_cost' => 0,
+            ]);
+
+            return $product;
+        });
 
         return response()->json(['status' => 'success', 'data' => $product], 201);
     }
@@ -68,13 +99,12 @@ class ProductController extends Controller
         $product->update([
             'name' => $request->name,
             'price' => $request->price,
-            'stock' => $request->stock,
             'category_id' => $request->category_id,
         ]);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Data produk berhasil diperbarui',
+            'message' => 'Data produk berhasil diperbarui. Use inventory endpoints for stock adjustments.',
             'data' => $product->fresh(),
         ]);
     }
