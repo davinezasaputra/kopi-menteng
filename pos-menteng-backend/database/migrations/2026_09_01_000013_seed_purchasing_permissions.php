@@ -14,6 +14,11 @@ return new class extends Migration
             ['module'=>'purchasing','resource'=>'requisition','action'=>'create'],
             ['module'=>'purchasing','resource'=>'requisition','action'=>'submit'],
             ['module'=>'purchasing','resource'=>'requisition','action'=>'cancel'],
+            ['module'=>'purchasing','resource'=>'order','action'=>'view'],
+            ['module'=>'purchasing','resource'=>'order','action'=>'create'],
+            ['module'=>'purchasing','resource'=>'order','action'=>'submit'],
+            ['module'=>'purchasing','resource'=>'order','action'=>'approve'],
+            ['module'=>'purchasing','resource'=>'order','action'=>'cancel'],
         ];
 
         foreach ($permissions as $permission) {
