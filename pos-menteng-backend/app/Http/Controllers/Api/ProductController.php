@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Inventory\Models\InventoryBalance;
+use App\Domain\Inventory\Models\StockMovement;
 use App\Domain\Organization\Models\Warehouse;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
@@ -52,11 +53,13 @@ class ProductController extends Controller
         }
 
         $product = DB::transaction(function () use ($request, $context, $warehouse) {
+            $openingQuantity = (float) $request->stock;
+
             $product = Product::create([
                 'tenant_id' => $context->tenantId(),
                 'name' => $request->name,
                 'price' => $request->price,
-                'stock' => $request->stock,
+                'stock' => $openingQuantity,
                 'category_id' => $request->category_id,
             ]);
 
@@ -66,10 +69,31 @@ class ProductController extends Controller
                 'branch_id' => $context->branchId(),
                 'warehouse_id' => $warehouse->id,
                 'product_id' => $product->id,
-                'quantity' => (float) $request->stock,
+                'quantity' => $openingQuantity,
                 'reserved_quantity' => 0,
                 'average_cost' => 0,
             ]);
+
+            if ($openingQuantity > 0) {
+                StockMovement::create([
+                    'tenant_id' => $context->tenantId(),
+                    'company_id' => $context->companyId(),
+                    'branch_id' => $context->branchId(),
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'movement_type' => 'opening_balance',
+                    'quantity' => $openingQuantity,
+                    'unit_cost' => 0,
+                    'balance_before' => 0,
+                    'balance_after' => $openingQuantity,
+                    'reference_type' => 'product_creation',
+                    'reference_id' => (string) $product->id,
+                    'created_by' => auth()->id(),
+                    'request_id' => request()->attributes->get('request_id'),
+                    'notes' => 'Opening inventory created with product.',
+                    'created_at' => now(),
+                ]);
+            }
 
             return $product;
         });
@@ -82,7 +106,7 @@ class ProductController extends Controller
         $tenantId = app(TenantContext::class)->tenantId();
         $product = Product::where('tenant_id', $tenantId)->find($id);
 
-        if (!$product) {
+        if (! $product) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Produk tidak ditemukan',
@@ -92,7 +116,6 @@ class ProductController extends Controller
         $request->validate([
             'name' => 'required|string',
             'price' => 'required|numeric|min:0',
-            'stock' => 'required|numeric|min:0',
             'category_id' => 'required|string',
         ]);
 
@@ -104,7 +127,7 @@ class ProductController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Data produk berhasil diperbarui. Use inventory endpoints for stock adjustments.',
+            'message' => 'Data produk berhasil diperbarui. Gunakan Inventory API untuk perubahan stok.',
             'data' => $product->fresh(),
         ]);
     }
@@ -114,7 +137,7 @@ class ProductController extends Controller
         $tenantId = app(TenantContext::class)->tenantId();
         $product = Product::where('tenant_id', $tenantId)->find($id);
 
-        if (!$product) {
+        if (! $product) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Produk tidak ditemukan di database',
@@ -140,7 +163,7 @@ class ProductController extends Controller
         $tenantId = app(TenantContext::class)->tenantId();
         $product = Product::where('tenant_id', $tenantId)->find($id);
 
-        if (!$product) {
+        if (! $product) {
             return response()->json(['status' => 'error', 'message' => 'Produk tidak ditemukan'], 404);
         }
 
