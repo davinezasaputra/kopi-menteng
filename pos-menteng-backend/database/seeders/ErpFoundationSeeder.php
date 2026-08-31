@@ -49,6 +49,12 @@ class ErpFoundationSeeder extends Seeder
             ['module'=>'accounting','resource'=>'journal','action'=>'post'],
             ['module'=>'hr','resource'=>'employee','action'=>'view'],
             ['module'=>'hr','resource'=>'employee','action'=>'manage'],
+            ['module'=>'purchasing','resource'=>'supplier','action'=>'view'],
+            ['module'=>'purchasing','resource'=>'supplier','action'=>'create'],
+            ['module'=>'purchasing','resource'=>'requisition','action'=>'view'],
+            ['module'=>'purchasing','resource'=>'requisition','action'=>'create'],
+            ['module'=>'purchasing','resource'=>'requisition','action'=>'submit'],
+            ['module'=>'purchasing','resource'=>'requisition','action'=>'cancel'],
         ];
 
         $permissionModels = collect($permissions)->mapWithKeys(function (array $permission) {
@@ -61,8 +67,9 @@ class ErpFoundationSeeder extends Seeder
             'branch-manager' => ['name'=>'Branch Manager', 'permissions'=>['pos.sale.view','pos.sale.create','inventory.stock.view','inventory.stock.adjust','organization.branch.view','hr.employee.view']],
             'cashier' => ['name'=>'Cashier', 'permissions'=>['pos.sale.view','pos.sale.create']],
             'accountant' => ['name'=>'Accountant', 'permissions'=>['accounting.journal.view','accounting.journal.create','accounting.journal.post']],
-            'warehouse-manager' => ['name'=>'Warehouse Manager', 'permissions'=>['inventory.stock.view','inventory.stock.adjust']],
+            'warehouse-manager' => ['name'=>'Warehouse Manager', 'permissions'=>['inventory.stock.view','inventory.stock.adjust','purchasing.supplier.view','purchasing.requisition.view','purchasing.requisition.create']],
             'hr-manager' => ['name'=>'HR Manager', 'permissions'=>['hr.employee.view','hr.employee.manage']],
+            'purchasing-manager' => ['name'=>'Purchasing Manager', 'permissions'=>['purchasing.supplier.view','purchasing.supplier.create','purchasing.requisition.view','purchasing.requisition.create','purchasing.requisition.submit','purchasing.requisition.cancel']],
         ];
 
         $roles = [];
