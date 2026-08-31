@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Shift;
+use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,23 +19,36 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
+        $context = app(TenantContext::class);
         $today = Carbon::today();
-        $orders = Order::with('items.product')->whereDate('created_at', $today)->orderBy('created_at', 'desc')->get();
+
+        $orders = Order::with('items.product')
+            ->where('tenant_id', $context->tenantId())
+            ->where('company_id', $context->companyId())
+            ->where('branch_id', $context->branchId())
+            ->whereDate('created_at', $today)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return response()->json([
             'status' => 'success',
-            'data' => $orders
+            'data' => $orders,
         ]);
     }
 
     public function checkout(Request $request)
     {
         $user = $request->user();
+        $context = app(TenantContext::class);
+        $tenantId = $context->tenantId();
+        $companyId = $context->companyId();
+        $branchId = $context->branchId();
 
         $activeShift = Shift::where('user_id', $user->id)->where('status', 'open')->first();
         if (!$activeShift) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Anda harus membuka shift terlebih dahulu.'
+                'message' => 'Anda harus membuka shift terlebih dahulu.',
             ], 403);
         }
 
@@ -51,12 +65,15 @@ class OrderController extends Controller
         try {
             DB::beginTransaction();
 
-            $subtotal = 0; // Total dari harga menu (sudah termasuk PPN)
-            $totalCogs = 0; // Modal (HPP)
+            $subtotal = 0;
+            $totalCogs = 0;
             $processedItems = [];
 
             foreach ($validated['items'] as $item) {
-                $product = Product::lockForUpdate()->with('rawMaterials')->findOrFail($item['product_id']);
+                $product = Product::where('tenant_id', $tenantId)
+                    ->lockForUpdate()
+                    ->with('rawMaterials')
+                    ->findOrFail($item['product_id']);
 
                 if ($product->stock < $item['quantity']) {
                     throw new \Exception("Stok {$product->name} tidak cukup. Sisa: {$product->stock}");
@@ -64,28 +81,27 @@ class OrderController extends Controller
 
                 $itemSubtotal = $product->price * $item['quantity'];
                 $subtotal += $itemSubtotal;
-                $itemCogs = 0; // Modal per item pesanan
+                $itemCogs = 0;
 
                 $product->decrement('stock', $item['quantity']);
-                
+
                 foreach ($product->rawMaterials as $material) {
                     $totalMaterialNeeded = $material->pivot->quantity_needed * $item['quantity'];
-                    
+
                     if ($material->stock < $totalMaterialNeeded) {
                         throw new \Exception("Bahan baku '{$material->name}' habis!");
                     }
-                    
+
                     $material->decrement('stock', $totalMaterialNeeded);
 
                     if ($material->fresh()->stock <= $material->min_stock_level) {
                         $material->update(['is_requested' => true]);
                     }
-                    
-                    // Kalkulasi HPP: Kebutuhan bahan x Harga Rata-rata Satuan
+
                     $itemCogs += ($totalMaterialNeeded * $material->price_per_unit);
                 }
 
-                $totalCogs += $itemCogs; // Akumulasi modal ke total keranjang
+                $totalCogs += $itemCogs;
 
                 $processedItems[] = [
                     'product_id' => $product->id,
@@ -95,46 +111,48 @@ class OrderController extends Controller
                 ];
             }
 
-            // 1. Dapatkan Total Harga Mentah dari Keranjang
-            $rawTotal = $subtotal; 
-
-            // 2. LOGIKA CRM MEMBER (Diskon)
+            $rawTotal = $subtotal;
             $discount = 0;
             $customer = null;
+
             if (!empty($validated['customer_id'])) {
-                $customer = Customer::find($validated['customer_id']);
+                $customer = Customer::where('tenant_id', $tenantId)
+                    ->whereKey($validated['customer_id'])
+                    ->first();
+
                 if ($customer) {
-                    if ($customer->tier === 'vip') $discount = $rawTotal * 0.10; // VIP Diskon 10%
-                    elseif ($customer->tier === 'gold') $discount = $rawTotal * 0.05; // Gold Diskon 5%
+                    if ($customer->tier === 'vip') $discount = $rawTotal * 0.10;
+                    elseif ($customer->tier === 'gold') $discount = $rawTotal * 0.05;
                 }
             }
 
-            // 3. LOGIKA PAJAK INKLUSIF & LABA BERSIH
-            $total = $rawTotal - $discount; // Harga akhir setelah diskon
-            $basePrice = $total / 1.11; // DPP (Dasar Pengenaan Pajak) baru
-            $tax = $total - $basePrice; // Potongan PPN baru
-            $netProfit = $basePrice - $totalCogs; // Laba Bersih = DPP - Modal
+            $total = $rawTotal - $discount;
+            $basePrice = $total / 1.11;
+            $tax = $total - $basePrice;
+            $netProfit = $basePrice - $totalCogs;
 
             $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
 
             $order = Order::create([
+                'tenant_id' => $tenantId,
+                'company_id' => $companyId,
+                'branch_id' => $branchId,
                 'user_id' => $user->id,
                 'shift_id' => $activeShift->id,
-                'customer_id' => $customer ? $customer->id : null, // Simpan Relasi Member
+                'customer_id' => $customer?->id,
                 'invoice_number' => $invoiceNumber,
                 'subtotal' => $basePrice,
                 'tax' => $tax,
-                'discount' => $discount, // Rekam Potongan Harga
+                'discount' => $discount,
                 'total' => $total,
                 'total_cogs' => $totalCogs,
                 'net_profit' => $netProfit,
                 'payment_method' => $validated['payment_method'],
                 'order_type' => $validated['order_type'],
-                'customer_name' => $validated['customer_name'],
+                'customer_name' => $validated['customer_name'] ?? null,
                 'status' => $validated['payment_method'] === 'cash' ? 'paid' : 'pending',
             ]);
 
-            // 4. BERIKAN POIN LOYALITAS (1 Poin tiap Rp 10.000)
             if ($customer && $validated['payment_method'] === 'cash') {
                 $earnedPoints = floor($total / 10000);
                 $customer->increment('points', $earnedPoints);
@@ -144,7 +162,7 @@ class OrderController extends Controller
                 $order->items()->create($processedItem);
             }
 
-            $paymentUrl = null; 
+            $paymentUrl = null;
 
             if ($validated['payment_method'] === 'cash') {
                 $activeShift->increment('expected_ending_cash', $total);
@@ -166,7 +184,7 @@ class OrderController extends Controller
                 ];
 
                 $snapToken = Snap::getSnapToken($midtransParams);
-                $paymentUrl = "https://app.sandbox.midtrans.com/snap/v3/redirection/" . $snapToken;
+                $paymentUrl = 'https://app.sandbox.midtrans.com/snap/v3/redirection/' . $snapToken;
             }
 
             DB::commit();
@@ -176,24 +194,31 @@ class OrderController extends Controller
                 'status' => 'success',
                 'message' => 'Transaksi berhasil diproses',
                 'payment_url' => $paymentUrl,
-                'data' => $order
+                'data' => $order,
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'status' => 'error',
-                'message' => 'Transaksi gagal: ' . $e->getMessage()
+                'message' => 'Transaksi gagal: ' . $e->getMessage(),
             ], 500);
         }
     }
 
     public function history(Request $request)
     {
-        $orders = Order::with(['items.product'])->orderBy('created_at', 'desc')->get();
+        $context = app(TenantContext::class);
+
+        $orders = Order::with(['items.product'])
+            ->where('tenant_id', $context->tenantId())
+            ->where('company_id', $context->companyId())
+            ->where('branch_id', $context->branchId())
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return response()->json([
             'status' => 'success',
-            'data' => $orders
+            'data' => $orders,
         ]);
     }
 }
