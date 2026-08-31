@@ -75,21 +75,15 @@ class InventoryService
         $membership = $this->context->membership();
 
         if (! $membership) {
-            throw ValidationException::withMessages([
-                'context' => 'No active ERP context.',
-            ]);
+            throw ValidationException::withMessages(['context' => 'No active ERP context.']);
         }
 
         if ((int) $warehouse->branch_id !== (int) $membership->branch_id) {
-            throw ValidationException::withMessages([
-                'warehouse_id' => 'Warehouse is outside the active branch.',
-            ]);
+            throw ValidationException::withMessages(['warehouse_id' => 'Warehouse is outside the active branch.']);
         }
 
         if ((int) $product->tenant_id !== (int) $membership->tenant_id) {
-            throw ValidationException::withMessages([
-                'product_id' => 'Product is outside the active tenant.',
-            ]);
+            throw ValidationException::withMessages(['product_id' => 'Product is outside the active tenant.']);
         }
 
         return DB::transaction(function () use (
@@ -160,6 +154,14 @@ class InventoryService
                 'notes' => $notes,
                 'created_at' => now(),
             ]);
+
+            // Backward-compatible projection for the existing POS/catalog API.
+            $legacyStock = InventoryBalance::query()
+                ->where('tenant_id', $membership->tenant_id)
+                ->where('product_id', $product->id)
+                ->sum('quantity');
+
+            $product->update(['stock' => max(0, (int) round((float) $legacyStock))]);
 
             return $balance->fresh();
         });
