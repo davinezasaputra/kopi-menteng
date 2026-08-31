@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\OrganizationProvisioningController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PurchasingController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RawMaterialController;
 use App\Http\Controllers\Api\ShiftController;
@@ -76,6 +77,13 @@ Route::middleware('request.id')->group(function () {
             Route::get('/inventory/balances', [InventoryController::class, 'balances'])->middleware('permission:inventory.stock.view');
             Route::get('/inventory/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.stock.view');
             Route::get('/inventory/valuation', [InventoryValuationController::class, 'index'])->middleware('permission:inventory.stock.view');
+
+            Route::get('/purchasing/suppliers', [PurchasingController::class, 'suppliers'])->middleware('permission:purchasing.supplier.view');
+            Route::post('/purchasing/suppliers', [PurchasingController::class, 'storeSupplier'])->middleware('permission:purchasing.supplier.create');
+            Route::get('/purchasing/requisitions', [PurchasingController::class, 'requisitions'])->middleware('permission:purchasing.requisition.view');
+            Route::post('/purchasing/requisitions', [PurchasingController::class, 'storeRequisition'])->middleware('permission:purchasing.requisition.create');
+            Route::post('/purchasing/requisitions/{requisition}/submit', [PurchasingController::class, 'submitRequisition'])->middleware('permission:purchasing.requisition.submit');
+            Route::post('/purchasing/requisitions/{requisition}/cancel', [PurchasingController::class, 'cancelRequisition'])->middleware('permission:purchasing.requisition.cancel');
             Route::post('/inventory/receive', [InventoryController::class, 'receive'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/issue', [InventoryController::class, 'issue'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/adjust', [InventoryController::class, 'adjust'])->middleware('permission:inventory.stock.adjust');
