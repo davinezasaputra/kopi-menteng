@@ -38,7 +38,7 @@ class PurchaseOrder extends Model
     public function requisition(): BelongsTo { return $this->belongsTo(PurchaseRequisition::class, 'purchase_requisition_id'); }
     public function creator(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
     public function submitter(): BelongsTo { return $this->belongsTo(User::class, 'submitted_by'); }
-    public function approver(): BelTo { return $this->belongsTo(User::class, 'approved_by'); }
+    public function approver(): BelongsTo { return $this->belongsTo(User::class, 'approved_by'); }
     public function canceller(): BelongsTo { return $this->belongsTo(User::class, 'cancelled_by'); }
     public function items(): HasMany { return $this->hasMany(PurchaseOrderItem::class); }
 }
