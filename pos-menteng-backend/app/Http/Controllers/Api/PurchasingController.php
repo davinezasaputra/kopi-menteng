@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Purchasing\Models\PurchaseRequisition;
 use App\Domain\Purchasing\Models\Supplier;
+use App\Domain\Purchasing\Models\PurchaseOrder;
+use App\Domain\Purchasing\Services\PurchaseOrderService;
 use App\Domain\Purchasing\Services\PurchaseRequisitionService;
 use App\Support\Tenancy\TenantContext;
 use App\Http\Controllers\Controller;
@@ -16,6 +18,7 @@ class PurchasingController extends Controller
     public function __construct(
         private readonly TenantContext $context,
         private readonly PurchaseRequisitionService $requisitions,
+        private readonly PurchaseOrderService $orders,
     ) {}
 
     public function suppliers(): JsonResponse
@@ -102,3 +105,5 @@ class PurchasingController extends Controller
         return response()->json(['status'=>'success','message'=>'Purchase requisition cancelled.','data'=>$this->requisitions->cancel($row)]);
     }
 }
+
+
