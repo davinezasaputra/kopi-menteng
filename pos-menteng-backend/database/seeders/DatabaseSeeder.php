@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use App\Models\User;
@@ -9,25 +10,28 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Membuat Akun Anda (Developer)
-        User::create([
-            'name' => 'Davin (Developer)',
-            'email' => 'davin-eza@mahasiswa.ubb.ac.id',
-            'password' => Hash::make('@DavinEza1213'), // Password harus di-hash
-            'role' => 'developer',
-            'pin' => null, // Developer tidak butuh PIN layar sentuh
-        ]);
+        User::firstOrCreate(
+            ['email' => 'davin-eza@mahasiswa.ubb.ac.id'],
+            [
+                'name' => 'Davin (Developer)',
+                'password' => Hash::make(env('SEED_DEVELOPER_PASSWORD', 'change-me-immediately')),
+                'role' => 'developer',
+                'pin' => null,
+            ]
+        );
 
-        // 2. Membuat Akun Kasir POS
-        User::create([
-            'name' => 'Kasir Satu',
-            'email' => 'kasir1@menteng.com',
-            'password' => Hash::make('kasir123'),
-            'role' => 'kasir',
-            'pin' => '123456', // PIN 6 digit untuk login cepat di React nanti
-        ]);
+        User::firstOrCreate(
+            ['email' => 'kasir1@menteng.com'],
+            [
+                'name' => 'Kasir Satu',
+                'password' => Hash::make(env('SEED_CASHIER_PASSWORD', 'change-me-immediately')),
+                'role' => 'kasir',
+                'pin' => env('SEED_CASHIER_PIN'),
+            ]
+        );
 
         $this->call([
+            ErpFoundationSeeder::class,
             ProductSeeder::class,
         ]);
     }
