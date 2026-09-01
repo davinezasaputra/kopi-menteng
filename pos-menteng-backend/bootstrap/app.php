@@ -4,6 +4,8 @@ use App\Http\Middleware\AddRequestId;
 use App\Http\Middleware\RequirePermission;
 use App\Http\Middleware\RequirePlatformAdmin;
 use App\Http\Middleware\ResolveTenantContext;
+use App\Http\Middleware\Idempotency;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -21,6 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => ResolveTenantContext::class,
             'permission' => RequirePermission::class,
             'platform.admin' => RequirePlatformAdmin::class,
+            'idempotency' => Idempotency::class,
+            'security.headers' => SecurityHeaders::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
