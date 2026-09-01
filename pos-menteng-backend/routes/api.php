@@ -165,21 +165,6 @@ Route::middleware(['request.id','security.headers'])->group(function () {
             Route::post('/inventory/receive', [InventoryController::class, 'receive'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/issue', [InventoryController::class, 'issue'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/adjust', [InventoryController::class, 'adjust'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/opnames', [InventoryOpnameController::class, 'index'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/opnames', [InventoryOpnameController::class, 'store'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/opnames/{opname}', [InventoryOpnameController::class, 'show'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/opnames/{opname}/count', [InventoryOpnameController::class, 'count'])->middleware('permission:inventory.stock.adjust');
-            Route::post('/inventory/opnames/{opname}/approve', [InventoryOpnameController::class, 'approve'])->middleware('permission:inventory.stock.adjust');
-            Route::post('/inventory/opnames/{opname}/cancel', [InventoryOpnameController::class, 'cancel'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/reservations', [InventoryReservationController::class, 'index'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/reservations', [InventoryReservationController::class, 'store'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/reservations/{reservation}', [InventoryReservationController::class, 'show'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/reservations/{reservation}/release', [InventoryReservationController::class, 'release'])->middleware('permission:inventory.stock.adjust');
-            Route::post('/inventory/reservations/{reservation}/expire', [InventoryReservationController::class, 'expire'])->middleware('permission:inventory.stock.adjust');
-            Route::post('/inventory/reservations/{reservation}/fulfill', [InventoryReservationController::class, 'fulfill'])->middleware('permission:inventory.stock.adjust');
-
             Route::get('/raw-materials', [RawMaterialController::class, 'index']);
             Route::post('/raw-materials', [RawMaterialController::class, 'store']);
             Route::put('/raw-materials/{id}', [RawMaterialController::class, 'update']);
@@ -217,10 +202,32 @@ Route::middleware(['request.id','security.headers'])->group(function () {
             Route::get('/hrm/payrolls', [HrmController::class, 'payrolls']);
             Route::post('/hrm/payrolls', [HrmController::class, 'generatePayroll']);
             Route::put('/hrm/payrolls/{id}/pay', [HrmController::class, 'paySalary']);
+
+            Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])->middleware('permission:inventory.transfer.view');
+            Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])->middleware('permission:inventory.transfer.create');
+            Route::get('/inventory/transfers/{transfer}', [InventoryTransferController::class, 'show'])->middleware('permission:inventory.transfer.view');
+            Route::post('/inventory/transfers/{transfer}/ship', [InventoryTransferController::class, 'ship'])->middleware('permission:inventory.transfer.ship');
+            Route::post('/inventory/transfers/{transfer}/receive', [InventoryTransferController::class, 'receive'])->middleware('permission:inventory.transfer.receive');
+            Route::post('/inventory/transfers/{transfer}/cancel', [InventoryTransferController::class, 'cancel'])->middleware('permission:inventory.transfer.cancel');
+            Route::get('/inventory/opnames', [InventoryOpnameController::class, 'index'])->middleware('permission:inventory.opname.view');
+            Route::post('/inventory/opnames', [InventoryOpnameController::class, 'store'])->middleware('permission:inventory.opname.create');
+            Route::get('/inventory/opnames/{opname}', [InventoryOpnameController::class, 'show'])->middleware('permission:inventory.opname.view');
+            Route::post('/inventory/opnames/{opname}/snapshot', [InventoryOpnameController::class, 'snapshot'])->middleware('permission:inventory.opname.snapshot');
+            Route::post('/inventory/opnames/{opname}/count', [InventoryOpnameController::class, 'physicalCount'])->middleware('permission:inventory.opname.count');
+            Route::post('/inventory/opnames/{opname}/approve', [InventoryOpnameController::class, 'approve'])->middleware('permission:inventory.opname.approve');
+            Route::post('/inventory/opnames/{opname}/cancel', [InventoryOpnameController::class, 'cancel'])->middleware('permission:inventory.opname.cancel');
+            Route::post('/inventory/opnames/{opname}/recount', [InventoryOpnameController::class, 'recount'])->middleware('permission:inventory.opname.count');
+            Route::get('/inventory/reservations', [InventoryReservationController::class, 'index'])->middleware('permission:inventory.reservation.view');
+            Route::post('/inventory/reservations', [InventoryReservationController::class, 'store'])->middleware('permission:inventory.reservation.create');
+            Route::get('/inventory/reservations/{reservation}', [InventoryReservationController::class, 'show'])->middleware('permission:inventory.reservation.view');
+            Route::post('/inventory/reservations/{reservation}/release', [InventoryReservationController::class, 'release'])->middleware('permission:inventory.reservation.release');
+            Route::post('/inventory/reservations/{reservation}/expire', [InventoryReservationController::class, 'expire'])->middleware('permission:inventory.stock.adjust');
+            Route::post('/inventory/reservations/{reservation}/fulfill', [InventoryReservationController::class, 'fulfill'])->middleware('permission:inventory.stock.adjust');
         });
     });
 });
 
 Route::get('/ready', \App\Http\Controllers\Api\ReadinessController::class)->middleware('security.headers');
-
 Route::get('/user', function (Request $request) { return $request->user(); })->middleware(['auth:sanctum', 'request.id','security.headers']);
+
+require __DIR__.'/api_v1.php';
