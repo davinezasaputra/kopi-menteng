@@ -21,29 +21,19 @@ class SalesOrder extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'id','tenant_id','company_id','branch_id','warehouse_id','customer_id','customer_name_snapshot',
+        'id','tenant_id','company_id','branch_id','location_id','warehouse_id','customer_id','customer_name_snapshot',
         'order_number','order_date','status','subtotal','discount_amount','tax_amount','grand_total',
         'created_by','submitted_by','submitted_at','approved_by','approved_at','rejected_by','rejected_at','rejection_reason','approval_matrix_rule_id','inventory_reservation_id','cancelled_by','cancelled_at','request_id','notes',
     ];
 
     protected static function booted(): void
     {
-        static::creating(function (self $order) {
-            $order->id ??= (string) Str::uuid();
-        });
+        static::creating(function (self $order) { $order->id ??= (string) Str::uuid(); });
     }
 
     protected function casts(): array
     {
-        return [
-            'order_date'=>'date',
-            'submitted_at'=>'datetime',
-            'cancelled_at'=>'datetime',
-            'subtotal'=>'decimal:2',
-            'discount_amount'=>'decimal:2',
-            'tax_amount'=>'decimal:2',
-            'grand_total'=>'decimal:2',
-        ];
+        return ['order_date'=>'date','submitted_at'=>'datetime','cancelled_at'=>'datetime','subtotal'=>'decimal:2','discount_amount'=>'decimal:2','tax_amount'=>'decimal:2','grand_total'=>'decimal:2'];
     }
 
     public function tenant(): BelongsTo { return $this->belongsTo(Tenant::class); }
