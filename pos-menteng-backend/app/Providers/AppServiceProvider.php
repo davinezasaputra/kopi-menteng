@@ -14,6 +14,9 @@ use App\Observers\RestockObserver;
 use App\Observers\SaleObserver;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +27,19 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        RateLimiter::for('erp', function (Request $request) {
+            $key = $request->user()
+                ? 'user:'.$request->user()->id
+                : 'ip:'.$request->ip();
+
+            return [
+                Limit::perMinute((int) env('ERP_API_RATE_LIMIT', 120))->by($key),
+            ];
+        });
+
+        RateLimiter::for('erp-login', fn (Request $request) =>
+            Limit::perMinute((int) env('ERP_LOGIN_RATE_LIMIT', 10))->by($request->ip())
+        );
         Order::observe(SaleObserver::class);
         OperationalExpense::observe(OpExObserver::class);
         Payroll::observe(PayrollObserver::class);
