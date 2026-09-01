@@ -6,6 +6,7 @@ use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Tenant;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Inventory\Models\InventoryReservation;
 use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -22,7 +23,7 @@ class SalesOrder extends Model
     protected $fillable = [
         'id','tenant_id','company_id','branch_id','warehouse_id','customer_id','customer_name_snapshot',
         'order_number','order_date','status','subtotal','discount_amount','tax_amount','grand_total',
-        'created_by','submitted_by','submitted_at','approved_by','approved_at','rejected_by','rejected_at','rejection_reason','approval_matrix_rule_id','cancelled_by','cancelled_at','request_id','notes',
+        'created_by','submitted_by','submitted_at','approved_by','approved_at','rejected_by','rejected_at','rejection_reason','approval_matrix_rule_id','inventory_reservation_id','cancelled_by','cancelled_at','request_id','notes',
     ];
 
     protected static function booted(): void
@@ -55,6 +56,7 @@ class SalesOrder extends Model
     public function approver(): BelongsTo { return $this->belongsTo(User::class,'approved_by'); }
     public function rejecter(): BelongsTo { return $this->belongsTo(User::class,'rejected_by'); }
     public function approvalRule(): BelongsTo { return $this->belongsTo(SalesApprovalMatrixRule::class,'approval_matrix_rule_id'); }
+    public function inventoryReservation(): BelongsTo { return $this->belongsTo(InventoryReservation::class,'inventory_reservation_id'); }
     public function canceller(): BelongsTo { return $this->belongsTo(User::class,'cancelled_by'); }
     public function items(): HasMany { return $this->hasMany(SalesOrderItem::class); }
 }
