@@ -4,19 +4,18 @@ import api from '../api/client';
 type Context = { tenant_id: number | null; company_id: number | null; branch_id: number | null; role?: string; permissions?: string[] };
 
 export function useFoundationContext() {
+  const hasToken = Boolean(localStorage.getItem('token'));
   const [context, setContext] = useState<Context | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(hasToken);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
       localStorage.removeItem('foundation_loaded');
-      setLoading(false);
       return;
     }
 
     let alive = true;
-    setLoading(true);
 
     api.get('/v1/me')
       .then(({ data }) => {
