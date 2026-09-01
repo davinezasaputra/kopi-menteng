@@ -21,34 +21,41 @@ class DocumentSequenceService
             $companyId = $this->context->companyId();
             $branchId = $this->context->branchId();
             $period = now()->format('Ym');
+            $lockKey = implode(':', [$tenantId, $companyId ?? 'null', $branchId ?? 'null', $type, $period]);
 
-            $sequence = DocumentSequence::query()
+            // PostgreSQL advisory transaction lock closes the race where two callers
+            // try to create the first sequence row simultaneously. Row locking then
+            // serializes subsequent increments. SQLite/test drivers simply use the
+            // transaction + row lock path.
+            if (DB::connection()->getDriverName() === 'pgsql') {
+                DB::select('SELECT pg_advisory_xact_lock(hashtext(?))', [$lockKey]);
+            }
+
+            $query = DocumentSequence::query()
                 ->where('tenant_id', $tenantId)
                 ->where('company_id', $companyId)
                 ->where('branch_id', $branchId)
                 ->where('document_type', $type)
-                ->where('period', $period)
-                ->lockForUpdate()
-                ->first();
+                ->where('period', $period);
+
+            $sequence = $query->lockForUpdate()->first();
 
             if (! $sequence) {
                 $sequence = DocumentSequence::create([
-                    'tenant_id' => $tenantId,
-                    'company_id' => $companyId,
-                    'branch_id' => $branchId,
-                    'document_type' => $type,
-                    'prefix' => $prefix ?: strtoupper(str_replace('_', '', $type)),
-                    'period' => $period,
-                    'next_number' => 1,
-                    'padding' => $padding ?: 6,
+                    'tenant_id'=>$tenantId,
+                    'company_id'=>$companyId,
+                    'branch_id'=>$branchId,
+                    'document_type'=>$type,
+                    'prefix'=>$prefix ?: strtoupper(str_replace('_','',$type)),
+                    'period'=>$period,
+                    'next_number'=>1,
+                    'padding'=>$padding ?: 6,
                 ]);
             }
 
-            $number = $sequence->next_number;
+            $number=(int)$sequence->next_number;
             $sequence->increment('next_number');
-            $sequence->refresh();
-
-            return sprintf('%s-%s-%s', $sequence->prefix, $period, str_pad((string) $number, $sequence->padding, '0', STR_PAD_LEFT));
+            return sprintf('%s-%s-%s',$sequence->prefix,$period,str_pad((string)$number,$sequence->padding,'0',STR_PAD_LEFT));
         });
     }
 }
