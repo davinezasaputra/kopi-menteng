@@ -6,6 +6,7 @@ use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Location;
 use App\Domain\Organization\Models\Tenant;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -23,22 +24,15 @@ class DeveloperOrganizationController extends Controller
 
     public function storeCompany(Request $request, int $tenant): JsonResponse
     {
-        Tenant::query()->findOrFail($tenant);
+        $tenantRecord = Tenant::query()->findOrFail($tenant);
         $data = $request->validate([
-            'code' => ['required','string','max:50'],
-            'name' => ['required','string','max:255'],
-            'legal_name' => ['nullable','string','max:255'],
-            'tax_number' => ['nullable','string','max:100'],
-            'email' => ['nullable','email','max:255'],
-            'phone' => ['nullable','string','max:50'],
-            'address' => ['nullable','string'],
-            'timezone' => ['nullable','string','max:64'],
-            'currency' => ['nullable','string','size:3'],
+            'code' => ['required','string','max:50'], 'name' => ['required','string','max:255'], 'legal_name' => ['nullable','string','max:255'],
+            'tax_number' => ['nullable','string','max:100'], 'email' => ['nullable','email','max:255'], 'phone' => ['nullable','string','max:50'],
+            'address' => ['nullable','string'], 'timezone' => ['nullable','string','max:64'], 'currency' => ['nullable','string','size:3'],
             'status' => ['nullable', Rule::in(['active','inactive','suspended'])],
         ]);
-        $data['code'] = strtoupper($data['code']);
-        $data['tenant_id'] = $tenant;
-        $data['status'] ??= 'active';
+        $data['code'] = strtoupper($data['code']); $data['tenant_id'] = $tenant; $data['status'] ??= 'active';
+        $data['timezone'] ??= $tenantRecord->timezone; $data['currency'] ??= $tenantRecord->currency;
         return response()->json(['status'=>'success','data'=>Company::create($data)], 201);
     }
 
@@ -46,13 +40,11 @@ class DeveloperOrganizationController extends Controller
     {
         $record = Company::query()->where('tenant_id',$tenant)->findOrFail($company);
         $data = $request->validate([
-            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'], 'legal_name'=>['nullable','string','max:255'],
-            'tax_number'=>['nullable','string','max:100'], 'email'=>['nullable','email','max:255'], 'phone'=>['nullable','string','max:50'],
-            'address'=>['nullable','string'], 'timezone'=>['required','string','max:64'], 'currency'=>['required','string','size:3'],
+            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'], 'legal_name'=>['nullable','string','max:255'], 'tax_number'=>['nullable','string','max:100'],
+            'email'=>['nullable','email','max:255'], 'phone'=>['nullable','string','max:50'], 'address'=>['nullable','string'], 'timezone'=>['required','string','max:64'], 'currency'=>['required','string','size:3'],
             'status'=>['required',Rule::in(['active','inactive','suspended'])],
         ]);
-        $data['code'] = strtoupper($data['code']);
-        $record->update($data);
+        $data['code'] = strtoupper($data['code']); $record->update($data);
         return response()->json(['status'=>'success','data'=>$record->fresh()]);
     }
 
@@ -60,9 +52,8 @@ class DeveloperOrganizationController extends Controller
     {
         $companyRecord = Company::query()->where('tenant_id',$tenant)->findOrFail($company);
         $data = $request->validate([
-            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'], 'type'=>['nullable','string','max:50'],
-            'email'=>['nullable','email','max:255'], 'phone'=>['nullable','string','max:50'], 'address'=>['nullable','string'],
-            'latitude'=>['nullable','numeric'], 'longitude'=>['nullable','numeric'], 'status'=>['nullable',Rule::in(['active','inactive','suspended'])],
+            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'], 'type'=>['nullable','string','max:50'], 'email'=>['nullable','email','max:255'],
+            'phone'=>['nullable','string','max:50'], 'address'=>['nullable','string'], 'latitude'=>['nullable','numeric'], 'longitude'=>['nullable','numeric'], 'status'=>['nullable',Rule::in(['active','inactive','suspended'])],
         ]);
         $data['code'] = strtoupper($data['code']); $data['company_id']=$companyRecord->id; $data['status'] ??= 'active'; $data['type'] ??= 'store';
         return response()->json(['status'=>'success','data'=>Branch::create($data)], 201);
@@ -72,9 +63,8 @@ class DeveloperOrganizationController extends Controller
     {
         $record = Branch::query()->where('company_id', $company)->whereHas('company', fn ($query) => $query->where('tenant_id',$tenant))->findOrFail($branch);
         $data = $request->validate([
-            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'], 'type'=>['nullable','string','max:50'],
-            'email'=>['nullable','email','max:255'], 'phone'=>['nullable','string','max:50'], 'address'=>['nullable','string'],
-            'latitude'=>['nullable','numeric'], 'longitude'=>['nullable','numeric'], 'status'=>['required',Rule::in(['active','inactive','suspended'])],
+            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'], 'type'=>['nullable','string','max:50'], 'email'=>['nullable','email','max:255'],
+            'phone'=>['nullable','string','max:50'], 'address'=>['nullable','string'], 'latitude'=>['nullable','numeric'], 'longitude'=>['nullable','numeric'], 'status'=>['required',Rule::in(['active','inactive','suspended'])],
         ]);
         $data['code'] = strtoupper($data['code']); $record->update($data);
         return response()->json(['status'=>'success','data'=>$record->fresh()]);
@@ -84,10 +74,8 @@ class DeveloperOrganizationController extends Controller
     {
         $branchRecord = Branch::query()->where('company_id',$company)->whereHas('company', fn ($query) => $query->where('tenant_id',$tenant))->findOrFail($branch);
         $data = $request->validate([
-            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'],
-            'type'=>['required',Rule::in(['store','warehouse','office'])], 'email'=>['nullable','email','max:255'],
-            'phone'=>['nullable','string','max:50'], 'address'=>['nullable','string'], 'latitude'=>['nullable','numeric'], 'longitude'=>['nullable','numeric'],
-            'status'=>['nullable',Rule::in(['active','inactive','suspended'])], 'settings'=>['nullable','array'],
+            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'], 'type'=>['required',Rule::in(['store','warehouse','office'])], 'email'=>['nullable','email','max:255'],
+            'phone'=>['nullable','string','max:50'], 'address'=>['nullable','string'], 'latitude'=>['nullable','numeric'], 'longitude'=>['nullable','numeric'], 'status'=>['nullable',Rule::in(['active','inactive','suspended'])], 'settings'=>['nullable','array'],
         ]);
         $data['code'] = strtoupper($data['code']); $data['branch_id']=$branchRecord->id; $data['status'] ??= 'active';
         return response()->json(['status'=>'success','data'=>Location::create($data)], 201);
@@ -97,9 +85,8 @@ class DeveloperOrganizationController extends Controller
     {
         $record = Location::query()->where('branch_id',$branch)->whereHas('branch.company', fn ($query) => $query->where('id',$company)->where('tenant_id',$tenant))->findOrFail($location);
         $data = $request->validate([
-            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'], 'type'=>['required',Rule::in(['store','warehouse','office'])],
-            'email'=>['nullable','email','max:255'], 'phone'=>['nullable','string','max:50'], 'address'=>['nullable','string'],
-            'latitude'=>['nullable','numeric'], 'longitude'=>['nullable','numeric'], 'status'=>['required',Rule::in(['active','inactive','suspended'])], 'settings'=>['nullable','array'],
+            'code'=>['required','string','max:50'], 'name'=>['required','string','max:255'], 'type'=>['required',Rule::in(['store','warehouse','office'])], 'email'=>['nullable','email','max:255'],
+            'phone'=>['nullable','string','max:50'], 'address'=>['nullable','string'], 'latitude'=>['nullable','numeric'], 'longitude'=>['nullable','numeric'], 'status'=>['required',Rule::in(['active','inactive','suspended'])], 'settings'=>['nullable','array'],
         ]);
         $data['code'] = strtoupper($data['code']); $record->update($data);
         return response()->json(['status'=>'success','data'=>$record->fresh()]);
