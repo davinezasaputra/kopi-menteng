@@ -8,6 +8,8 @@ use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Tenant;
 use App\Domain\Organization\Models\TenantLicense;
+use App\Domain\Organization\Models\TenantLicenseEvent;
+use App\Domain\Organization\Models\TenantSubscription;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -47,7 +49,8 @@ class DeveloperController extends Controller
     {
         $tenants = Tenant::query()->with(['companies.branches'])->withCount('companies')->orderBy('name')->get();
         $licenses = TenantLicense::query()->whereIn('tenant_id', $tenants->pluck('id'))->get()->keyBy('tenant_id');
-        $data = $tenants->map(function (Tenant $tenant) use ($licenses): array {
+        $subscriptions = TenantSubscription::query()->whereIn('tenant_id', $tenants->pluck('id'))->orderByDesc('id')->get()->groupBy('tenant_id')->map(fn ($items) => $items->first());
+        $data = $tenants->map(function (Tenant $tenant) use ($licenses, $subscriptions): array {
             $license = $licenses->get($tenant->id);
             return [
                 'id' => $tenant->id,
@@ -59,6 +62,7 @@ class DeveloperController extends Controller
                 'company_count' => $tenant->companies->count(),
                 'branch_count' => $tenant->companies->sum(fn (Company $company) => $company->branches->count()),
                 'license' => $license,
+                'subscription' => $subscriptions->get($tenant->id),
                 'companies' => $tenant->companies->map(fn (Company $company) => [
                     'id' => $company->id,
                     'code' => $company->code,
@@ -99,20 +103,96 @@ class DeveloperController extends Controller
 
         $plan = self::LICENSE_PLANS[$data['plan_code']];
         $features = $data['features'] ?? $plan['features'];
-        $license = TenantLicense::updateOrCreate(['tenant_id' => $tenant], [
-            'plan_code' => $data['plan_code'],
-            'plan_name' => $plan['name'],
-            'features' => array_values(array_unique($features)),
-            'max_users' => $data['max_users'] ?? $plan['max_users'],
-            'max_branches' => $data['max_branches'] ?? $plan['max_branches'],
-            'starts_at' => $data['starts_at'] ?? now(),
-            'expires_at' => $data['expires_at'] ?? null,
-            'status' => 'active',
-            'auto_renew' => (bool) ($data['auto_renew'] ?? false),
-            'notes' => $data['notes'] ?? null,
+        $license = DB::transaction(function () use ($tenant, $data, $plan, $features): TenantLicense {
+            $previous = TenantLicense::query()->where('tenant_id', $tenant)->first();
+            $license = TenantLicense::updateOrCreate(['tenant_id' => $tenant], [
+                'plan_code' => $data['plan_code'],
+                'plan_name' => $plan['name'],
+                'features' => array_values(array_unique($features)),
+                'max_users' => $data['max_users'] ?? $plan['max_users'],
+                'max_branches' => $data['max_branches'] ?? $plan['max_branches'],
+                'starts_at' => $data['starts_at'] ?? now(),
+                'expires_at' => $data['expires_at'] ?? null,
+                'status' => 'active',
+                'auto_renew' => (bool) ($data['auto_renew'] ?? false),
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            TenantLicenseEvent::create([
+                'tenant_id' => $tenant,
+                'tenant_license_id' => $license->id,
+                'actor_user_id' => auth()->id(),
+                'event' => $previous ? 'license_updated' : 'license_created',
+                'from_plan_code' => $previous?->plan_code,
+                'to_plan_code' => $license->plan_code,
+                'from_status' => $previous?->status,
+                'to_status' => $license->status,
+                'metadata' => [
+                    'features' => $license->features,
+                    'max_users' => $license->max_users,
+                    'max_branches' => $license->max_branches,
+                    'expires_at' => optional($license->expires_at)->toIso8601String(),
+                ],
+            ]);
+
+            return $license->fresh();
+        });
+
+        return response()->json(['status' => 'success', 'data' => $license]);
+    }
+
+    public function subscription(int $tenant): JsonResponse
+    {
+        Tenant::query()->findOrFail($tenant);
+        return response()->json(['status' => 'success', 'data' => TenantSubscription::query()->where('tenant_id', $tenant)->latest('id')->first()]);
+    }
+
+    public function updateSubscription(Request $request, int $tenant): JsonResponse
+    {
+        $tenantRecord = Tenant::query()->findOrFail($tenant);
+        $data = $request->validate([
+            'subscription_no' => ['nullable', 'string', 'max:80'],
+            'plan_code' => ['required', Rule::in(array_keys(self::LICENSE_PLANS))],
+            'billing_cycle' => ['required', Rule::in(['monthly', 'quarterly', 'yearly'])],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'currency' => ['required', 'string', 'size:3'],
+            'starts_at' => ['nullable', 'date'],
+            'current_period_start' => ['nullable', 'date'],
+            'current_period_end' => ['nullable', 'date', 'after_or_equal:current_period_start'],
+            'trial_ends_at' => ['nullable', 'date'],
+            'grace_until' => ['nullable', 'date'],
+            'status' => ['required', Rule::in(['trialing', 'active', 'past_due', 'suspended', 'cancelled'])],
+            'auto_renew' => ['nullable', 'boolean'],
+            'notes' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        return response()->json(['status' => 'success', 'data' => $license->fresh()]);
+        $subscription = TenantSubscription::updateOrCreate(
+            ['tenant_id' => $tenantRecord->id],
+            [
+                'subscription_no' => $data['subscription_no'] ?: ('SUB-' . strtoupper($tenantRecord->code) . '-' . now()->format('Ym')),
+                'plan_code' => $data['plan_code'],
+                'billing_cycle' => $data['billing_cycle'],
+                'amount' => $data['amount'],
+                'currency' => strtoupper($data['currency']),
+                'starts_at' => $data['starts_at'] ?? now(),
+                'current_period_start' => $data['current_period_start'] ?? now()->startOfDay(),
+                'current_period_end' => $data['current_period_end'] ?? null,
+                'trial_ends_at' => $data['trial_ends_at'] ?? null,
+                'grace_until' => $data['grace_until'] ?? null,
+                'status' => $data['status'],
+                'auto_renew' => (bool) ($data['auto_renew'] ?? false),
+                'notes' => $data['notes'] ?? null,
+            ]
+        );
+
+        return response()->json(['status' => 'success', 'data' => $subscription->fresh()]);
+    }
+
+    public function licenseEvents(int $tenant): JsonResponse
+    {
+        Tenant::query()->findOrFail($tenant);
+        $events = TenantLicenseEvent::query()->where('tenant_id', $tenant)->with('actor')->latest()->limit(100)->get();
+        return response()->json(['status' => 'success', 'data' => $events]);
     }
 
     public function tenantAdmins(Request $request, int $tenant): JsonResponse
