@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\OrganizationProvisioningController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PurchasingController;
+use App\Http\Controllers\Api\ErpAccountingController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RawMaterialController;
 use App\Http\Controllers\Api\ShiftController;
@@ -95,6 +96,10 @@ Route::middleware('request.id')->group(function () {
             Route::post('/purchasing/invoices', [PurchasingController::class, 'storeSupplierInvoice'])->middleware('permission:purchasing.ap.create');
             Route::get('/purchasing/payments', [PurchasingController::class, 'supplierPayments'])->middleware('permission:purchasing.ap.view');
             Route::post('/purchasing/payments', [PurchasingController::class, 'storeSupplierPayment'])->middleware('permission:purchasing.ap.pay');
+            Route::get('/erp/accounting/accounts', [ErpAccountingController::class, 'accounts'])->middleware('permission:accounting.erp.account.view');
+            Route::post('/erp/accounting/accounts', [ErpAccountingController::class, 'storeAccount'])->middleware('permission:accounting.erp.account.create');
+            Route::get('/erp/accounting/journals', [ErpAccountingController::class, 'journals'])->middleware('permission:accounting.erp.journal.view');
+            Route::post('/erp/accounting/journals', [ErpAccountingController::class, 'storeJournal'])->middleware('permission:accounting.erp.journal.create');
             Route::post('/inventory/receive', [InventoryController::class, 'receive'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/issue', [InventoryController::class, 'issue'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/adjust', [InventoryController::class, 'adjust'])->middleware('permission:inventory.stock.adjust');
