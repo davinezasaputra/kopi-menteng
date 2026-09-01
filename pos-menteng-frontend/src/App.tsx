@@ -35,9 +35,8 @@ const AxiosInterceptor = ({ children }: { children: React.ReactNode }) => {
 };
 
 const FoundationBootstrap = () => {
-  const token = localStorage.getItem('token');
   useFoundationContext();
-  return token ? null : null;
+  return null;
 };
 
 interface ProtectedRouteProps { children: React.ReactNode; allowedRoles?: string[]; requiredPermission?: string; }
@@ -47,7 +46,7 @@ const ProtectedRoute = ({ children, allowedRoles, requiredPermission }: Protecte
   if (!token || !userString || userString === 'undefined') return <Navigate to="/" replace />;
   let user: any;
   try { user = JSON.parse(userString); } catch { localStorage.removeItem('user'); return <Navigate to="/" replace />; }
-  const permissions = (() => { try { return JSON.parse(localStorage.getItem('permissions') || '[]'); } catch { return []; } }) as unknown as string[];
+  const permissions: string[] = (() => { try { return JSON.parse(localStorage.getItem('permissions') || '[]'); } catch { return []; } })();
   if (requiredPermission && permissions.length > 0 && !permissions.includes(requiredPermission)) return <Navigate to="/dashboard" replace />;
   if (!requiredPermission && allowedRoles && !allowedRoles.includes(user?.role)) {
     if (user?.role === 'cashier' || user?.role === 'kasir') return <Navigate to="/pos" replace />;
