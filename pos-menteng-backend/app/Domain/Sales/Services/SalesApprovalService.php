@@ -3,13 +3,17 @@
 namespace App\Domain\Sales\Services;
 
 use App\Domain\Sales\Models\{SalesApprovalMatrixRule,SalesOrder};
+use App\Domain\Inventory\Services\InventoryReservationService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SalesApprovalService
 {
-    public function __construct(private readonly TenantContext $context)
+    public function __construct(
+        private readonly TenantContext $context,
+        private readonly InventoryReservationService $reservations,
+    )
     {
     }
 
@@ -151,8 +155,23 @@ class SalesApprovalService
                 throw ValidationException::withMessages(['status'=>'Only submitted sales orders can be approved.']);
             }
 
-            $old=$row->only(['status']);
+            $row->load(['items','warehouse']);
+
+            $reservation = $this->reservations->reserve(
+                $row->warehouse,
+                $row->items->map(fn ($item) => [
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                ])->all(),
+                'sales_order',
+                (string) $row->id,
+                null,
+                'Automatic reservation for approved sales order ' . $row->order_number,
+            );
+
+            $old=$row->only(['status','inventory_reservation_id']);
             $row->status='approved';
+            $row->inventory_reservation_id=$reservation->id;
             $row->approval_matrix_rule_id=$rule->id;
             $row->approved_by=auth()->id();
             $row->approved_at=now();
