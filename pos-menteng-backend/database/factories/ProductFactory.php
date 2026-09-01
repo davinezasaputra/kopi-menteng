@@ -16,9 +16,17 @@ class ProductFactory extends Factory
 
     public function definition(): array
     {
+        $category = Category::query()->first();
+
+        if (! $category) {
+            $category = Category::create([
+                'name' => 'Factory Category ' . Str::upper(Str::random(6)),
+            ]);
+        }
+
         return [
             'tenant_id' => null,
-            'category_id' => null,
+            'category_id' => $category->getKey(),
             'name' => fake()->unique()->words(2, true),
             'description' => fake()->optional()->sentence(),
             'price' => fake()->numberBetween(10000, 100000),
@@ -28,41 +36,9 @@ class ProductFactory extends Factory
         ];
     }
 
-    public function configure(): static
-    {
-        return $this->afterMaking(function (Product $product): void {
-            if ($product->category_id !== null) {
-                return;
-            }
-
-            $tenantId = $product->tenant_id;
-
-            $category = Category::query()
-                ->when($tenantId !== null, fn ($query) => $query->where('tenant_id', $tenantId))
-                ->first();
-
-            if ($category) {
-                $product->category_id = $category->getKey();
-            }
-        })->afterCreating(function (Product $product): void {
-            if ($product->category_id !== null) {
-                return;
-            }
-
-            $category = Category::create([
-                'tenant_id' => $product->tenant_id,
-                'name' => 'Factory Category ' . Str::upper(Str::random(6)),
-            ]);
-
-            $product->forceFill(['category_id' => $category->getKey()])->save();
-            $product->refresh();
-        });
-    }
-
     public function forCategory(Category $category): static
     {
         return $this->state(fn () => [
-            'tenant_id' => $category->tenant_id,
             'category_id' => $category->getKey(),
         ]);
     }
