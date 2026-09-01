@@ -6,6 +6,16 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Keep index names unique across PostgreSQL relations.
+     * PostgreSQL index names are schema-wide, unlike MySQL where they are
+     * scoped to a table.
+     */
+    private function indexName(string $tableName): string
+    {
+        return 'org_location_scope_'.str_replace('_', '_', $tableName).'_idx';
+    }
+
     public function up(): void
     {
         $tables = [
@@ -36,9 +46,11 @@ return new class extends Migration
                 continue;
             }
 
-            Schema::table($tableName, function (Blueprint $table): void {
+            $indexName = $this->indexName($tableName);
+
+            Schema::table($tableName, function (Blueprint $table) use ($indexName): void {
                 $table->foreignId('location_id')->nullable()->after('branch_id')->constrained('locations')->nullOnDelete();
-                $table->index(['tenant_id', 'company_id', 'branch_id', 'location_id'], 'org_location_scope_idx');
+                $table->index(['tenant_id', 'company_id', 'branch_id', 'location_id'], $indexName);
             });
         }
     }
@@ -70,8 +82,10 @@ return new class extends Migration
                 continue;
             }
 
-            Schema::table($tableName, function (Blueprint $table): void {
-                $table->dropIndex('org_location_scope_idx');
+            $indexName = $this->indexName($tableName);
+
+            Schema::table($tableName, function (Blueprint $table) use ($indexName): void {
+                $table->dropIndex($indexName);
                 $table->dropForeign(['location_id']);
                 $table->dropColumn('location_id');
             });
