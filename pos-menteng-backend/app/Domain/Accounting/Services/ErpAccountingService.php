@@ -133,4 +133,40 @@ class ErpAccountingService
             return $batch->load('lines.account');
         });
     }
+    public function postSourceJournal(
+        string $sourceType,
+        string $sourceId,
+        string $description,
+        array $lines,
+        ?int $branchId = null,
+    ): ErpJournalBatch {
+        $membership = $this->context->membership();
+
+        if (! $membership) {
+            throw ValidationException::withMessages(['context' => 'No active ERP context.']);
+        }
+
+        return DB::transaction(function () use ($membership, $sourceType, $sourceId, $description, $lines, $branchId) {
+            $existing = ErpJournalBatch::query()
+                ->where('tenant_id', $membership->tenant_id)
+                ->where('company_id', $membership->company_id)
+                ->where('source_type', $sourceType)
+                ->where('source_id', $sourceId)
+                ->with('lines.account')
+                ->first();
+
+            if ($existing) {
+                return $existing;
+            }
+
+            return $this->postJournal([
+                'branch_id' => $branchId ?? $membership->branch_id,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+                'description' => $description,
+                'lines' => $lines,
+            ]);
+        });
+    }
+
 }
