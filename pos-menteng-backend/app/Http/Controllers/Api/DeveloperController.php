@@ -9,6 +9,7 @@ use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Tenant;
 use App\Domain\Organization\Models\TenantLicense;
+use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
