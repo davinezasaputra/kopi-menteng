@@ -17,11 +17,18 @@ type MenuItem = {
   anyOf?: string[];
 };
 
-type MenuGroup = {
+type SubGroup = {
+  key: string;
+  label: string;
+  items: MenuItem[];
+};
+
+type ModuleGroup = {
   key: string;
   label: string;
   icon: string;
-  items: MenuItem[];
+  items?: MenuItem[];
+  subgroups?: SubGroup[];
 };
 
 const itemAllowed = (item: MenuItem): boolean => {
@@ -30,41 +37,90 @@ const itemAllowed = (item: MenuItem): boolean => {
   return true;
 };
 
-const moduleGroups: MenuGroup[] = [
+const moduleGroups: ModuleGroup[] = [
   {
-    key: 'erp', label: 'ERP', icon: '🏢', items: [
-      { key: 'operations', label: 'Overview', icon: '📊', path: '/erp/operations', anyOf: ['inventory.stock.view', 'purchasing.supplier.view', 'purchasing.order.view', 'sales.order.view', 'accounting.report.view'] },
-      { key: 'inventory', label: 'Inventory', icon: '📦', path: '/inventory', permission: 'inventory.stock.view' },
-      { key: 'inventory-operations', label: 'Kontrol Persediaan', icon: '📈', path: '/inventory/operations', anyOf: ['inventory.stock.view', 'inventory.stock.adjust'] },
-      { key: 'raw-materials', label: 'Bahan Baku', icon: '🫙', path: '/raw-materials', permission: 'inventory.stock.view' },
-      { key: 'purchasing-orders', label: 'Purchase Order', icon: '📝', path: '/purchasing/orders', anyOf: ['purchasing.order.view', 'purchasing.order.create'] },
-      { key: 'accounting', label: 'Accounting / Finance', icon: '💲', path: '/accounting', anyOf: ['accounting.journal.view', 'accounting.erp_account.view', 'accounting.report.view'] },
-      { key: 'history', label: 'Riwayat & Laporan', icon: '🧾', path: '/history', anyOf: ['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view'] },
+    key: 'erp',
+    label: 'ERP',
+    icon: '🏢',
+    subgroups: [
+      {
+        key: 'erp-overview',
+        label: 'Overview',
+        items: [
+          { key: 'operations', label: 'Operations Center', icon: '📊', path: '/erp/operations', anyOf: ['inventory.stock.view', 'purchasing.supplier.view', 'purchasing.order.view', 'sales.order.view', 'accounting.report.view'] },
+        ],
+      },
+      {
+        key: 'erp-inventory',
+        label: 'Inventory',
+        items: [
+          { key: 'inventory', label: 'Produk', icon: '📦', path: '/inventory', permission: 'inventory.stock.view' },
+          { key: 'inventory-operations', label: 'Kontrol Persediaan', icon: '📈', path: '/inventory/operations', anyOf: ['inventory.stock.view', 'inventory.stock.adjust'] },
+          { key: 'raw-materials', label: 'Bahan Baku', icon: '🫙', path: '/raw-materials', permission: 'inventory.stock.view' },
+        ],
+      },
+      {
+        key: 'erp-purchasing',
+        label: 'Purchasing',
+        items: [
+          { key: 'purchasing-orders', label: 'Purchase Order', icon: '📝', path: '/purchasing/orders', anyOf: ['purchasing.order.view', 'purchasing.order.create'] },
+        ],
+      },
+      {
+        key: 'erp-finance',
+        label: 'Finance & Accounting',
+        items: [
+          { key: 'accounting', label: 'Accounting / Finance', icon: '💲', path: '/accounting', anyOf: ['accounting.journal.view', 'accounting.erp_account.view', 'accounting.report.view'] },
+          { key: 'history', label: 'Riwayat & Laporan', icon: '🧾', path: '/history', anyOf: ['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view'] },
+        ],
+      },
     ],
   },
   {
-    key: 'pos', label: 'POS', icon: '🛒', items: [
+    key: 'pos',
+    label: 'POS',
+    icon: '🛒',
+    items: [
       { key: 'pos', label: 'Kasir', icon: '🛒', path: '/pos', permission: 'pos.sale.view' },
     ],
   },
   {
-    key: 'crm', label: 'CRM', icon: '🤝', items: [
+    key: 'crm',
+    label: 'CRM',
+    icon: '🤝',
+    items: [
       { key: 'customers', label: 'Pelanggan', icon: '👤', path: '/customers', permission: 'sales.order.view' },
     ],
   },
   {
-    key: 'hrm', label: 'HRM', icon: '🧑‍💼', items: [
+    key: 'hrm',
+    label: 'HRM',
+    icon: '🧑‍💼',
+    items: [
       { key: 'employees', label: 'Karyawan', icon: '🧑‍💻', path: '/employees', permission: 'hr.employee.view' },
       { key: 'hrm', label: 'HRD & Penggajian', icon: '💼', path: '/hrm', permission: 'hr.employee.view' },
     ],
   },
   {
-    key: 'administration', label: 'Administration', icon: '⚙️', items: [
+    key: 'administration',
+    label: 'Administration',
+    icon: '⚙️',
+    items: [
       { key: 'users', label: 'Users', icon: '👥', path: '/users', permission: 'users.user.view' },
       { key: 'foundation', label: 'Organizations & Access', icon: '🔐', path: '/admin/foundation', permission: 'rbac.role.view' },
     ],
   },
 ];
+
+function filterModule(module: ModuleGroup): ModuleGroup | null {
+  const items = module.items?.filter(itemAllowed) ?? [];
+  const subgroups = module.subgroups
+    ?.map(group => ({ ...group, items: group.items.filter(itemAllowed) }))
+    .filter(group => group.items.length > 0) ?? [];
+
+  if (!items.length && !subgroups.length) return null;
+  return { ...module, items, subgroups };
+}
 
 export default function AdminSidebar({ activePage = 'dashboard' }: AdminSidebarProps) {
   const navigate = useNavigate();
@@ -75,23 +131,38 @@ export default function AdminSidebar({ activePage = 'dashboard' }: AdminSidebarP
     try { return JSON.parse(localStorage.getItem('erp_context') || '{}') as { tenant_id?: number; company_id?: number; branch_id?: number }; } catch { return {}; }
   }, []);
 
-  const allowedGroups = useMemo(
-    () => moduleGroups.map(group => ({ ...group, items: group.items.filter(itemAllowed) })).filter(group => group.items.length > 0),
+  const allowedModules = useMemo(
+    () => moduleGroups.map(filterModule).filter((module): module is ModuleGroup => module !== null),
     [],
   );
 
-  const activeGroup = useMemo(
-    () => allowedGroups.find(group => group.items.some(item => item.key === activePage))?.key ?? null,
-    [activePage, allowedGroups],
+  const activeModule = useMemo(
+    () => allowedModules.find(module =>
+      (module.items ?? []).some(item => item.key === activePage) ||
+      (module.subgroups ?? []).some(group => group.items.some(item => item.key === activePage)),
+    )?.key ?? null,
+    [activePage, allowedModules],
   );
-  const [openGroups, setOpenGroups] = useState<string[]>(activeGroup ? [activeGroup] : []);
+
+  const activeSubGroup = useMemo(
+    () => allowedModules.flatMap(module => module.subgroups ?? []).find(group => group.items.some(item => item.key === activePage))?.key ?? null,
+    [activePage, allowedModules],
+  );
+
+  const [openModules, setOpenModules] = useState<string[]>(activeModule ? [activeModule] : []);
+  const [openSubGroups, setOpenSubGroups] = useState<string[]>(activeSubGroup ? [activeSubGroup] : []);
 
   useEffect(() => {
-    if (activeGroup) setOpenGroups(current => current.includes(activeGroup) ? current : [...current, activeGroup]);
-  }, [activeGroup]);
+    if (activeModule) setOpenModules(current => current.includes(activeModule) ? current : [...current, activeModule]);
+    if (activeSubGroup) setOpenSubGroups(current => current.includes(activeSubGroup) ? current : [...current, activeSubGroup]);
+  }, [activeModule, activeSubGroup]);
 
-  const toggleGroup = (key: string) => {
-    setOpenGroups(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key]);
+  const toggleModule = (key: string) => {
+    setOpenModules(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key]);
+  };
+
+  const toggleSubGroup = (key: string) => {
+    setOpenSubGroups(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key]);
   };
 
   const handleLogout = async () => {
@@ -112,8 +183,18 @@ export default function AdminSidebar({ activePage = 'dashboard' }: AdminSidebarP
     }
   };
 
+  const renderItem = (item: MenuItem, nested = false) => (
+    <button
+      key={item.key}
+      onClick={() => navigate(item.path)}
+      className={`w-full flex items-center gap-3 rounded-lg transition text-left text-sm ${nested ? 'px-3 py-2' : 'px-3 py-2.5'} ${activePage === item.key ? 'bg-amber-700/20 text-amber-500 font-medium' : 'hover:bg-stone-800 hover:text-white'}`}
+    >
+      <span>{item.icon}</span>{item.label}
+    </button>
+  );
+
   return (
-    <aside className="w-64 bg-stone-900 text-stone-300 flex flex-col">
+    <aside className="w-72 bg-stone-900 text-stone-300 flex flex-col">
       <div className="p-6 border-b border-stone-800 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-700 font-bold text-white text-xs">KM</div>
         <div className="flex flex-col min-w-0">
@@ -137,30 +218,38 @@ export default function AdminSidebar({ activePage = 'dashboard' }: AdminSidebarP
           <span>📊</span>Dashboard
         </button>
 
-        {allowedGroups.map(group => {
-          const isOpen = openGroups.includes(group.key);
-          const isActive = activeGroup === group.key;
+        {allowedModules.map(module => {
+          const isOpen = openModules.includes(module.key);
+          const isActive = activeModule === module.key;
           return (
-            <div key={group.key}>
+            <div key={module.key}>
               <button
-                onClick={() => toggleGroup(group.key)}
+                onClick={() => toggleModule(module.key)}
                 className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl transition text-left ${isActive ? 'bg-stone-800 text-white' : 'hover:bg-stone-800 hover:text-white'}`}
               >
-                <span className="flex items-center gap-3"><span>{group.icon}</span><span className="font-semibold">{group.label}</span></span>
+                <span className="flex items-center gap-3"><span>{module.icon}</span><span className="font-semibold">{module.label}</span></span>
                 <span className="text-xs text-stone-500">{isOpen ? '⌃' : '⌄'}</span>
               </button>
 
               {isOpen && (
                 <div className="mt-1 ml-3 space-y-1 border-l border-stone-800 pl-2">
-                  {group.items.map(item => (
-                    <button
-                      key={item.key}
-                      onClick={() => navigate(item.path)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition text-left text-sm ${activePage === item.key ? 'bg-amber-700/20 text-amber-500 font-medium' : 'hover:bg-stone-800 hover:text-white'}`}
-                    >
-                      <span>{item.icon}</span>{item.label}
-                    </button>
-                  ))}
+                  {(module.items ?? []).map(item => renderItem(item))}
+
+                  {(module.subgroups ?? []).map(group => {
+                    const subOpen = openSubGroups.includes(group.key);
+                    const subActive = group.items.some(item => item.key === activePage);
+                    return (
+                      <div key={group.key}>
+                        <button
+                          onClick={() => toggleSubGroup(group.key)}
+                          className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${subActive ? 'text-amber-500' : 'text-stone-500 hover:text-stone-300'}`}
+                        >
+                          <span>{group.label}</span><span>{subOpen ? '−' : '+'}</span>
+                        </button>
+                        {subOpen && <div className="space-y-1 pl-2">{group.items.map(item => renderItem(item, true))}</div>}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
