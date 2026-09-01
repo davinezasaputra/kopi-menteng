@@ -136,9 +136,18 @@ class SupplierCreditNoteService
 
     private function applyToInvoice(SupplierCreditNote $note,SupplierInvoice $invoice,float $amount): void
     {
-        $note->applied_amount = $amount;
-        $note->remaining_amount = 0;
-        $note->status = 'applied';
+        $outstanding = max(0, (float) $invoice->total_amount - (float) $invoice->paid_amount);
+
+        // Apply the credit to any remaining AP first. If the invoice is already
+        // fully paid, the unused portion remains as supplier credit/refund.
+        $applied = min($amount, $outstanding);
+        $remaining = round($amount - $applied, 2);
+
+        $note->applied_amount = $applied;
+        $note->remaining_amount = $remaining;
+        $note->status = $remaining > 0
+            ? ($applied > 0 ? 'partially_applied' : 'open')
+            : 'applied';
         $note->save();
     }
 
