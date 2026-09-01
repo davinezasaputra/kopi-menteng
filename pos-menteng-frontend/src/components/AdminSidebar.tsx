@@ -38,12 +38,20 @@ function allowed(item: MenuItem): boolean {
 
 export default function AdminSidebar({ activePage = 'dashboard' }: AdminSidebarProps) {
   const navigate = useNavigate();
-  let user: { name?: string } = {};
-  try { user = JSON.parse(localStorage.getItem('user') || '{}'); } catch { user = {}; }
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}') as { name?: string };
+    } catch {
+      return {};
+    }
+  })();
 
   const context = (() => {
-    try { return JSON.parse(localStorage.getItem('erp_context') || '{}') as { tenant_id?: number; company_id?: number; branch_id?: number }; }
-    catch { return {}; }
+    try {
+      return JSON.parse(localStorage.getItem('erp_context') || '{}') as { tenant_id?: number; company_id?: number; branch_id?: number };
+    } catch {
+      return {};
+    }
   })();
 
   const handleLogout = async () => {
