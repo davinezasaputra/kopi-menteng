@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DeveloperController;
 use App\Http\Controllers\Api\FoundationController;
 use App\Http\Controllers\Api\OrganizationProvisioningController;
 use App\Http\Controllers\Api\UserController;
@@ -36,6 +37,15 @@ Route::prefix('v1')->middleware(['request.id','security.headers'])->group(functi
             Route::get('/document-sequences', [FoundationController::class, 'documentSequences'])->middleware('permission:rbac.role.view');
             Route::get('/organizations/departments', [FoundationController::class, 'departments'])->middleware('permission:organization.branch.view');
             Route::get('/organizations/cost-centers', [FoundationController::class, 'costCenters'])->middleware('permission:organization.branch.view');
+        });
+
+        Route::prefix('developer')->middleware('platform.admin')->group(function () {
+            Route::get('/license-catalog', [DeveloperController::class, 'licenseCatalog']);
+            Route::get('/tenants', [DeveloperController::class, 'tenants']);
+            Route::get('/tenants/{tenant}/license', [DeveloperController::class, 'tenantLicense']);
+            Route::put('/tenants/{tenant}/license', [DeveloperController::class, 'updateTenantLicense']);
+            Route::get('/tenants/{tenant}/admins', [DeveloperController::class, 'tenantAdmins']);
+            Route::put('/tenant-admins/{membership}', [DeveloperController::class, 'updateTenantAdmin']);
         });
 
         Route::prefix('organizations')->middleware('platform.admin')->group(function () {
