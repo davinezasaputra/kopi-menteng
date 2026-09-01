@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Identity\Models\Permission;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DeveloperController;
 use App\Http\Controllers\Api\DeveloperTenantController;
@@ -42,6 +43,7 @@ Route::prefix('v1')->middleware(['request.id','security.headers'])->group(functi
 
         Route::prefix('developer')->middleware('platform.admin')->group(function () {
             Route::get('/license-catalog', [DeveloperController::class, 'licenseCatalog']);
+            Route::get('/permissions', fn () => response()->json(['status' => 'success', 'data' => Permission::query()->orderBy('module')->orderBy('resource')->orderBy('action')->get()]));
             Route::get('/tenants', [DeveloperController::class, 'tenants']);
             Route::put('/tenants/{tenant}', [DeveloperTenantController::class, 'update']);
             Route::get('/tenants/{tenant}/license', [DeveloperController::class, 'tenantLicense']);
