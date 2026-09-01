@@ -40,12 +40,12 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('request.id')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/login-pin', [AuthController::class, 'loginPin']);
+Route::middleware(['request.id','security.headers'])->group(function () {
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:erp-login');
+    Route::post('/login-pin', [AuthController::class, 'loginPin'])->middleware('throttle:erp-login');
     Route::post('/midtrans/webhook', [PaymentController::class, 'handleWebhook']);
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum','throttle:erp'])->group(function () {
         Route::get('/me', function (Request $request) {
             $user = $request->user();
             $context = app(TenantContext::class);
@@ -74,7 +74,7 @@ Route::middleware('request.id')->group(function () {
         Route::middleware(['tenant', 'permission:users.user.delete'])->group(function () { Route::delete('/users/{id}', [UserController::class, 'destroy']); });
         Route::middleware(['tenant', 'permission:audit.audit_log.view'])->group(function () { Route::get('/audit-logs', [AuditLogController::class, 'index']); });
 
-        Route::middleware('tenant')->group(function () {
+        Route::middleware(['tenant','idempotency'])->group(function () {
             Route::get('/shifts/status', [ShiftController::class, 'status']);
             Route::post('/shifts/open', [ShiftController::class, 'open']);
             Route::post('/shifts/close', [ShiftController::class, 'close']);
