@@ -15,6 +15,7 @@ class Payroll extends Model
         'base_salary' => 'decimal:2',
         'allowance' => 'decimal:2',
         'deduction' => 'decimal:2',
+        'attendance_deduction' => 'decimal:2',
         'total_salary' => 'decimal:2',
     ];
 
