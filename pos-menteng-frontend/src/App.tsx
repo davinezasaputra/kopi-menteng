@@ -23,7 +23,7 @@ import FoundationAdmin from './pages/admin/FoundationAdmin';
 import EnterpriseOperations from './pages/EnterpriseOperations';
 import GuidedOperations from './pages/GuidedOperations';
 import PurchaseOrders from './pages/PurchaseOrders';
-import PurchasingWorkspace from './pages/PurchasingWorkspace';
+import PurchasingWorkspaceV2 from './pages/PurchasingWorkspaceV2';
 import OperationsCenter from './pages/OperationsCenter';
 
 const AxiosInterceptor = ({ children }: { children: ReactNode }) => {
@@ -79,8 +79,8 @@ function App() {
     <Route path="/erp/operations" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'purchasing.order.view', 'sales.order.view', 'accounting.report.view']}><OperationsCenter /></ProtectedRoute>} />
     <Route path="/erp/operations/guided" element={<ProtectedRoute requiredAnyPermission={['purchasing.supplier.create', 'purchasing.order.create', 'sales.order.create', 'accounting.report.view', 'accounting.erp_journal.create']}><GuidedOperations /></ProtectedRoute>} />
     <Route path="/erp/operations/raw" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'sales.order.view', 'accounting.report.view']}><EnterpriseOperations /></ProtectedRoute>} />
-    <Route path="/purchasing" element={<ProtectedRoute requiredAnyPermission={['purchasing.supplier.view', 'purchasing.requisition.view', 'purchasing.order.view', 'purchasing.receipt.view', 'purchasing.ap.view', 'purchasing.return.view', 'purchasing.credit_note.view', 'purchasing.budget.view', 'purchasing.approval_matrix.view', 'purchasing.reconciliation.view', 'purchasing.reporting.view']}><PurchasingWorkspace /></ProtectedRoute>} />
-    <Route path="/purchasing/orders" element={<ProtectedRoute requiredPermission="purchasing.order.view"><PurchaseOrders /></ProtectedRoute>} />
+    <Route path="/purchasing" element={<ProtectedRoute requiredAnyPermission={['purchasing.supplier.view','purchasing.requisition.view','purchasing.order.view','purchasing.receipt.view','purchasing.ap.view','purchasing.return.view','purchasing.credit_note.view','purchasing.budget.view','purchasing.approval_matrix.view','purchasing.reconciliation.view','purchasing.reporting.view']}><PurchasingWorkspaceV2 /></ProtectedRoute>} />
+    <Route path="/purchasing/orders" element={<ProtectedRoute requiredPermission="purchasing.order.view"><PurchasingWorkspaceV2 /></ProtectedRoute>} />
   </Routes></AxiosInterceptor></FoundationBootstrap></BrowserRouter>;
 }
 
