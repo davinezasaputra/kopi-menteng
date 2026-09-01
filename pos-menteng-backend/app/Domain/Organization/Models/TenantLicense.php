@@ -39,4 +39,28 @@ class TenantLicense extends Model
     {
         return $this->isActive() && in_array($feature, $this->features ?? [], true);
     }
+
+    public function allowsPermission(string $permission): bool
+    {
+        if (! $this->isActive()) return false;
+
+        $prefixMap = [
+            'pos.' => 'pos',
+            'inventory.' => 'inventory',
+            'purchasing.' => 'purchasing',
+            'sales.' => 'sales',
+            'accounting.' => 'accounting',
+            'hr.' => 'hrm',
+            'users.' => 'administration',
+            'rbac.' => 'administration',
+            'audit.' => 'audit',
+            'organization.' => 'organization',
+        ];
+
+        foreach ($prefixMap as $prefix => $feature) {
+            if (str_starts_with($permission, $prefix)) return $this->hasFeature($feature);
+        }
+
+        return false;
+    }
 }
