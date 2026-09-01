@@ -26,6 +26,18 @@ class FinanceClosingService
         if($month<1||$month>12) throw ValidationException::withMessages(['month'=>'Month must be between 1 and 12.']);
         $start=Carbon::create($year,$month,1)->startOfMonth();
         $end=$start->copy()->endOfMonth();
+
+        $period=FiscalPeriod::query()
+            ->where('tenant_id',$m->tenant_id)
+            ->where('company_id',$m->company_id)
+            ->where('year',$year)
+            ->where('month',$month)
+            ->first();
+
+        if ($period?->status === 'closed') {
+            throw ValidationException::withMessages(['period'=>'Fiscal period is already closed and cannot be reopened.']);
+        }
+
         return FiscalPeriod::updateOrCreate(
             ['tenant_id'=>$m->tenant_id,'company_id'=>$m->company_id,'year'=>$year,'month'=>$month],
             ['starts_on'=>$start->toDateString(),'ends_on'=>$end->toDateString(),'status'=>'open','notes'=>$notes]
