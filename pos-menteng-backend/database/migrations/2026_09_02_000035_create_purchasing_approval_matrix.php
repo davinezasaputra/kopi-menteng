@@ -31,7 +31,6 @@ return new class extends Migration
             $table->foreignId('rejected_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('rejected_at')->nullable();
             $table->text('rejection_reason')->nullable();
-            $table->index(['tenant_id','company_id','branch_id','status']);
         });
     }
 
