@@ -104,6 +104,8 @@ Route::middleware('request.id')->group(function () {
             Route::get('/purchasing/reports/ap-aging', [PurchasingReportingController::class, 'apAging'])->middleware('permission:purchasing.reporting.view');
             Route::get('/purchasing/returns', [PurchasingController::class, 'supplierReturns'])->middleware('permission:purchasing.return.view');
             Route::post('/purchasing/returns', [PurchasingController::class, 'storeSupplierReturn'])->middleware('permission:purchasing.return.create');
+            Route::get('/purchasing/credit-notes', [PurchasingController::class, 'supplierCreditNotes'])->middleware('permission:purchasing.credit_note.view');
+            Route::post('/purchasing/credit-notes', [PurchasingController::class, 'storeSupplierCreditNote'])->middleware('permission:purchasing.credit_note.create');
             Route::get('/erp/accounting/accounts', [ErpAccountingController::class, 'accounts'])->middleware('permission:accounting.erp.account.view');
             Route::post('/erp/accounting/accounts', [ErpAccountingController::class, 'storeAccount'])->middleware('permission:accounting.erp.account.create');
             Route::get('/erp/accounting/journals', [ErpAccountingController::class, 'journals'])->middleware('permission:accounting.erp.journal.view');
