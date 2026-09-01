@@ -95,6 +95,9 @@ class ErpMasterSeeder extends Seeder
             ['sales','order','view'], ['sales','order','create'], ['sales','order','submit'],
             ['sales','order','cancel'], ['sales','order','approve'],
             ['sales','approval_matrix','view'], ['sales','approval_matrix','create'],
+            ['accounting','fiscal_period','view'], ['accounting','fiscal_period','manage'],
+            ['accounting','report','view'], ['accounting','reconciliation','view'], ['accounting','reconciliation','create'],
+            ['accounting','period','close'],
         ];
 
         $permissionModels = [];
@@ -132,7 +135,7 @@ class ErpMasterSeeder extends Seeder
                 'organization.branch.view','hr.employee.view',
             ],
             'cashier' => ['pos.sale.view','pos.sale.create','sales.order.view','sales.order.create'],
-            'accountant' => ['accounting.journal.view','accounting.journal.create','accounting.journal.post','accounting.erp_account.view','accounting.erp_account.create','accounting.erp_journal.view','accounting.erp_journal.create','purchasing.ap.view','purchasing.reconciliation.view'],
+'accountant' => ['accounting.journal.view','accounting.journal.create','accounting.journal.post','accounting.erp_account.view','accounting.erp_account.create','accounting.erp_journal.view','accounting.erp_journal.create','accounting.fiscal_period.view','accounting.fiscal_period.manage','accounting.report.view','accounting.reconciliation.view','accounting.reconciliation.create','accounting.period.close','purchasing.ap.view','purchasing.reconciliation.view'],
             'warehouse-manager' => ['inventory.stock.view','inventory.stock.adjust','purchasing.supplier.view','purchasing.requisition.view','purchasing.requisition.create'],
             'hr-manager' => ['hr.employee.view','hr.employee.manage'],
         ];
