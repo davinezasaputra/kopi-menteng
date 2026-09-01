@@ -32,6 +32,13 @@ class TenantLicense extends Model
         if ($this->status !== 'active') return false;
         if ($this->starts_at && now()->lt($this->starts_at)) return false;
         if ($this->expires_at && now()->gt($this->expires_at)) return false;
+
+        $subscription = TenantSubscription::query()->where('tenant_id', $this->tenant_id)->latest('id')->first();
+        if ($subscription) {
+            if (in_array($subscription->status, ['suspended', 'cancelled'], true)) return false;
+            if ($subscription->status === 'past_due' && (! $subscription->grace_until || now()->gt($subscription->grace_until))) return false;
+        }
+
         return true;
     }
 
