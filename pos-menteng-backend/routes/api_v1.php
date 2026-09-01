@@ -19,7 +19,7 @@ Route::prefix('v1')->middleware(['request.id','security.headers'])->group(functi
         Route::get('/me', [FoundationController::class, 'context'])->middleware('tenant');
         Route::post('/context', function (Request $request) {
             $data=$request->validate(['tenant_id'=>['nullable','integer'],'company_id'=>['nullable','integer'],'branch_id'=>['nullable','integer']]);
-            foreach(['tenant_id'=>'X-Tenant-ID','company_id'=>'X-Company-ID','branch_id'=>'X-Branch-ID'] as $field=>$header){ if(array_key_exists($field,$data)&&$data[$field]!==null)$request->headers->set($header,(string)$data[$field]); }
+            foreach(['tenant_id'=>'X-Tenant-ID','company_id'=>'X-Company-ID','branch_id'=>'X-Branch-ID'] as $field=>$header){if(array_key_exists($field,$data)&&$data[$field]!==null)$request->headers->set($header,(string)$data[$field]);}
             app(TenantContext::class)->resolveFor($request->user(),$request);
             return app(FoundationController::class)->context();
         });
@@ -33,6 +33,9 @@ Route::prefix('v1')->middleware(['request.id','security.headers'])->group(functi
             Route::get('/permissions', [FoundationController::class, 'permissions'])->middleware('permission:rbac.role.view');
             Route::get('/memberships', [FoundationController::class, 'memberships'])->middleware('permission:rbac.role.view');
             Route::get('/audit-logs', [FoundationController::class, 'auditLogs'])->middleware('permission:audit.audit_log.view');
+            Route::get('/document-sequences', [FoundationController::class, 'documentSequences'])->middleware('permission:rbac.role.view');
+            Route::get('/organizations/departments', [FoundationController::class, 'departments'])->middleware('permission:organization.branch.view');
+            Route::get('/organizations/cost-centers', [FoundationController::class, 'costCenters'])->middleware('permission:organization.branch.view');
         });
 
         Route::prefix('organizations')->middleware('platform.admin')->group(function () {
