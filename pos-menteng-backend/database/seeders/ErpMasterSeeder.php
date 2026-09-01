@@ -209,6 +209,7 @@ class ErpMasterSeeder extends Seeder
             ['code'=>'1000','name'=>'Cash','type'=>'asset','normal_balance'=>'debit'],
             ['code'=>'1010','name'=>'Bank','type'=>'asset','normal_balance'=>'debit'],
             ['code'=>'1100','name'=>'Inventory Asset','type'=>'asset','normal_balance'=>'debit'],
+            ['code'=>'1200','name'=>'Accounts Receivable','type'=>'asset','normal_balance'=>'debit'],
             ['code'=>'2100','name'=>'Accounts Payable','type'=>'liability','normal_balance'=>'credit'],
             ['code'=>'4000','name'=>'Sales Revenue','type'=>'revenue','normal_balance'=>'credit'],
             ['code'=>'5000','name'=>'Cost of Goods Sold','type'=>'expense','normal_balance'=>'debit'],
