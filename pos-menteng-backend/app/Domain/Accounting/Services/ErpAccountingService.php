@@ -3,6 +3,7 @@
 namespace App\Domain\Accounting\Services;
 
 use App\Domain\Accounting\Models\ErpAccount;
+use App\Domain\Accounting\Services\FinanceClosingService;
 use App\Domain\Accounting\Models\ErpJournalBatch;
 use App\Domain\Accounting\Models\ErpJournalLine;
 use App\Domain\Core\Services\DocumentNumberService;
@@ -15,6 +16,7 @@ class ErpAccountingService
     public function __construct(
         private readonly TenantContext $context,
         private readonly DocumentNumberService $numbers,
+        private readonly FinanceClosingService $closing,
     ) {
     }
 
@@ -65,6 +67,8 @@ class ErpAccountingService
         if (! $membership) {
             throw ValidationException::withMessages(['context' => 'No active ERP context.']);
         }
+
+        $this->closing->assertOpenForDate($data['journal_date'] ?? now()->toDateString(), $membership->tenant_id, $membership->company_id);
 
         $lines = $data['lines'];
         $debit = round(collect($lines)->sum(fn ($line) => (float)($line['debit'] ?? 0)), 2);
