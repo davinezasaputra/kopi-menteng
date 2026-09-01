@@ -7,6 +7,7 @@ use App\Domain\Identity\Models\Membership;
 use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
+use App\Domain\Organization\Models\Location;
 use App\Domain\Organization\Models\TenantLicense;
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -22,7 +23,7 @@ class UserController extends Controller
         $tenantId = app(TenantContext::class)->tenantId();
         $users = User::query()
             ->whereHas('memberships', fn ($q) => $q->where('tenant_id', $tenantId)->where('status', 'active'))
-            ->with(['memberships' => fn ($q) => $q->where('tenant_id', $tenantId)->where('status', 'active')->with('role')])
+            ->with(['memberships' => fn ($q) => $q->where('tenant_id', $tenantId)->where('status', 'active')->with(['role','company','branch','location'])])
             ->orderBy('name')
             ->get();
 
@@ -39,6 +40,7 @@ class UserController extends Controller
             'role_code' => 'required|string|max:100',
             'company_id' => 'nullable|integer',
             'branch_id' => 'nullable|integer',
+            'location_id' => 'nullable|integer',
         ]);
 
         $license = TenantLicense::query()->where('tenant_id', $context->tenantId())->first();
@@ -52,6 +54,7 @@ class UserController extends Controller
         $role = Role::query()->where('tenant_id', $context->tenantId())->where('code', $validated['role_code'])->firstOrFail();
         $companyId = $validated['company_id'] ?? $context->companyId();
         $branchId = $validated['branch_id'] ?? $context->branchId();
+        $locationId = $validated['location_id'] ?? $context->locationId();
 
         if ($companyId !== null) {
             abort_unless(Company::query()->whereKey($companyId)->where('tenant_id', $context->tenantId())->exists(), 403);
@@ -59,8 +62,11 @@ class UserController extends Controller
         if ($branchId !== null) {
             abort_unless(Branch::query()->whereKey($branchId)->whereHas('company', fn ($q) => $q->where('tenant_id', $context->tenantId())->whereKey($companyId))->exists(), 403);
         }
+        if ($locationId !== null) {
+            abort_unless(Location::query()->whereKey($locationId)->where('branch_id', $branchId)->whereHas('branch.company', fn ($q) => $q->where('id', $companyId)->where('tenant_id', $context->tenantId()))->exists(), 403);
+        }
 
-        $user = DB::transaction(function () use ($validated, $context, $role, $companyId, $branchId) {
+        $user = DB::transaction(function () use ($validated, $context, $role, $companyId, $branchId, $locationId) {
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
@@ -78,7 +84,7 @@ class UserController extends Controller
 
             Membership::create([
                 'tenant_id' => $context->tenantId(), 'user_id' => $user->id,
-                'company_id' => $companyId, 'branch_id' => $branchId,
+                'company_id' => $companyId, 'branch_id' => $branchId, 'location_id' => $locationId,
                 'role_id' => $role->id, 'status' => 'active', 'is_primary' => true,
             ]);
 
@@ -101,9 +107,9 @@ class UserController extends Controller
 
         abort_if((int) $id === (int) auth()->id(), 403, 'You cannot remove your own active membership.');
 
-        $old = $membership->only(['tenant_id','user_id','company_id','branch_id','role_id','status']);
+        $old = $membership->only(['tenant_id','user_id','company_id','branch_id','location_id','role_id','status']);
         $membership->update(['status' => 'inactive', 'is_primary' => false]);
-        app(AuditService::class)->record('membership_revoked', 'users', $membership, $old, $membership->only(['tenant_id','user_id','company_id','branch_id','role_id','status']));
+        app(AuditService::class)->record('membership_revoked', 'users', $membership, $old, $membership->only(['tenant_id','user_id','company_id','branch_id','location_id','role_id','status']));
 
         return response()->json(['status' => 'success', 'message' => 'User membership revoked.']);
     }
