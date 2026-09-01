@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import './core/api/client';
-import { can, canAny } from './core/auth/permissions';
+import { can, canAny, isDeveloper } from './core/auth/permissions';
 import { useFoundationContext } from './core/hooks/useFoundationContext';
 import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
@@ -57,6 +57,13 @@ const ProtectedRoute = ({ children, requiredPermission, requiredAnyPermission }:
   return <>{children}</>;
 };
 
+const DeveloperRoute = ({ children }: { children: ReactNode }) => {
+  const token = localStorage.getItem('token');
+  if (!token) return <Navigate to="/" replace />;
+  if (!isDeveloper()) return <Navigate to="/forbidden" replace />;
+  return <>{children}</>;
+};
+
 const Forbidden = () => <main className="min-h-screen bg-stone-50 flex items-center justify-center px-6"><section className="max-w-md rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-sm"><div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">403</div><h1 className="text-xl font-bold text-stone-900">Akses ditolak</h1><p className="mt-2 text-sm text-stone-600">Akun ini tidak memiliki permission untuk membuka halaman tersebut.</p></section></main>;
 
 function App() {
@@ -64,7 +71,7 @@ function App() {
     <Route path="/" element={<Login />} />
     <Route path="/admin-login" element={<AdminLogin />} />
     <Route path="/forbidden" element={<Forbidden />} />
-    <Route path="/platform" element={<ProtectedRoute requiredPermission="platform.admin"><DeveloperConsole /></ProtectedRoute>} />
+    <Route path="/platform" element={<DeveloperRoute><DeveloperConsole /></DeveloperRoute>} />
     <Route path="/pos" element={<ProtectedRoute requiredPermission="pos.sale.view"><Pos /></ProtectedRoute>} />
     <Route path="/inventory" element={<ProtectedRoute requiredPermission="inventory.stock.view"><Inventory /></ProtectedRoute>} />
     <Route path="/inventory/operations" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><InventoryOperations /></ProtectedRoute>} />
