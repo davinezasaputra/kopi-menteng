@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\Identity\Models\Membership;
 use App\Domain\Identity\Models\Permission;
-use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Tenant;
@@ -46,17 +45,10 @@ class DeveloperController extends Controller
 
     public function tenants(): JsonResponse
     {
-        $tenants = Tenant::query()
-            ->with(['companies.branches'])
-            ->withCount('companies')
-            ->orderBy('name')
-            ->get();
-
+        $tenants = Tenant::query()->with(['companies.branches'])->withCount('companies')->orderBy('name')->get();
         $licenses = TenantLicense::query()->whereIn('tenant_id', $tenants->pluck('id'))->get()->keyBy('tenant_id');
         $data = $tenants->map(function (Tenant $tenant) use ($licenses): array {
             $license = $licenses->get($tenant->id);
-            $companyCount = $tenant->companies->count();
-            $branchCount = $tenant->companies->sum(fn (Company $company) => $company->branches->count());
             return [
                 'id' => $tenant->id,
                 'code' => $tenant->code,
@@ -64,8 +56,8 @@ class DeveloperController extends Controller
                 'status' => $tenant->status,
                 'timezone' => $tenant->timezone,
                 'currency' => $tenant->currency,
-                'company_count' => $companyCount,
-                'branch_count' => $branchCount,
+                'company_count' => $tenant->companies->count(),
+                'branch_count' => $tenant->companies->sum(fn (Company $company) => $company->branches->count()),
                 'license' => $license,
                 'companies' => $tenant->companies->map(fn (Company $company) => [
                     'id' => $company->id,
@@ -87,8 +79,7 @@ class DeveloperController extends Controller
 
     public function tenantLicense(int $tenant): JsonResponse
     {
-        $record = TenantLicense::query()->where('tenant_id', $tenant)->first();
-        return response()->json(['status' => 'success', 'data' => $record]);
+        return response()->json(['status' => 'success', 'data' => TenantLicense::query()->where('tenant_id', $tenant)->first()]);
     }
 
     public function updateTenantLicense(Request $request, int $tenant): JsonResponse
@@ -108,21 +99,18 @@ class DeveloperController extends Controller
 
         $plan = self::LICENSE_PLANS[$data['plan_code']];
         $features = $data['features'] ?? $plan['features'];
-        $license = TenantLicense::updateOrCreate(
-            ['tenant_id' => $tenant],
-            [
-                'plan_code' => $data['plan_code'],
-                'plan_name' => $plan['name'],
-                'features' => array_values(array_unique($features)),
-                'max_users' => $data['max_users'] ?? $plan['max_users'],
-                'max_branches' => $data['max_branches'] ?? $plan['max_branches'],
-                'starts_at' => $data['starts_at'] ?? now(),
-                'expires_at' => $data['expires_at'] ?? null,
-                'status' => 'active',
-                'auto_renew' => (bool) ($data['auto_renew'] ?? false),
-                'notes' => $data['notes'] ?? null,
-            ]
-        );
+        $license = TenantLicense::updateOrCreate(['tenant_id' => $tenant], [
+            'plan_code' => $data['plan_code'],
+            'plan_name' => $plan['name'],
+            'features' => array_values(array_unique($features)),
+            'max_users' => $data['max_users'] ?? $plan['max_users'],
+            'max_branches' => $data['max_branches'] ?? $plan['max_branches'],
+            'starts_at' => $data['starts_at'] ?? now(),
+            'expires_at' => $data['expires_at'] ?? null,
+            'status' => 'active',
+            'auto_renew' => (bool) ($data['auto_renew'] ?? false),
+            'notes' => $data['notes'] ?? null,
+        ]);
 
         return response()->json(['status' => 'success', 'data' => $license->fresh()]);
     }
@@ -133,7 +121,7 @@ class DeveloperController extends Controller
         $memberships = Membership::query()
             ->where('tenant_id', $tenant)
             ->whereHas('role', fn ($query) => $query->where('code', 'tenant-admin'))
-            ->with(['user', 'company', 'branch', 'role.permissions'])
+            ->with(['user', 'company', 'branch', 'role.permissions', 'permissionOverrides.permission'])
             ->orderByDesc('is_primary')
             ->orderBy('id')
             ->get();
@@ -150,7 +138,10 @@ class DeveloperController extends Controller
             'branch_id' => $membership->branch_id,
             'branch_name' => $membership->branch?->name,
             'role' => $membership->role?->code,
-            'permissions' => $membership->role?->permissions?->pluck('name')->values()->all() ?? [],
+            'permission_overrides' => $membership->permissionOverrides->pluck('permission.name')->filter()->values()->all(),
+            'permissions' => $membership->permissionOverrides->isNotEmpty()
+                ? $membership->permissionOverrides->pluck('permission.name')->filter()->values()->all()
+                : ($membership->role?->permissions?->pluck('name')->values()->all() ?? []),
         ])->values()]);
     }
 
@@ -186,10 +177,16 @@ class DeveloperController extends Controller
             User::query()->whereKey($membership->user_id)->update(['name' => $data['name'], 'email' => $data['email']]);
             $membership->update(['status' => $data['status'], 'company_id' => $company->id, 'branch_id' => $branch->id]);
             $permissionIds = Permission::query()->whereIn('name', $requestedPermissions)->pluck('id')->all();
-            $membership->role->permissions()->sync($permissionIds);
+            $membership->permissionOverrides()->delete();
+            if ($permissionIds) {
+                $membership->permissionOverrides()->createMany(array_map(
+                    fn (int $permissionId) => ['permission_id' => $permissionId],
+                    $permissionIds
+                ));
+            }
         });
 
-        return response()->json(['status' => 'success', 'message' => 'Tenant admin berhasil diperbarui.', 'data' => $membership->fresh(['user', 'company', 'branch', 'role.permissions'])]);
+        return response()->json(['status' => 'success', 'message' => 'Tenant admin berhasil diperbarui.', 'data' => $membership->fresh(['user', 'company', 'branch', 'role.permissions', 'permissionOverrides.permission'])]);
     }
 
     private function licensedPermissionNames(?TenantLicense $license): array
@@ -198,7 +195,6 @@ class DeveloperController extends Controller
         $features = $license->features ?? [];
         $prefixes = collect($features)->flatMap(fn (string $feature) => self::FEATURE_PREFIXES[$feature] ?? [])->unique()->values();
         if ($prefixes->isEmpty()) return [];
-
         return Permission::query()->pluck('name')->filter(function (string $name) use ($prefixes): bool {
             foreach ($prefixes as $prefix) {
                 if (str_starts_with($name, $prefix)) return true;
