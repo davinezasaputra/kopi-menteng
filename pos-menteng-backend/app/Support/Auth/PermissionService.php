@@ -20,11 +20,18 @@ class PermissionService
             return false;
         }
 
-        return $membership->role()
-            ->with('permissions')
-            ->first()
-            ?->permissions
-            ->contains('name', $permission) ?? false;
+        $role = $membership->role()->with('permissions')->first();
+        if (! $role) {
+            return false;
+        }
+
+        // tenant-admin is the tenant-scoped super-admin role and is
+        // intentionally allowed to access all tenant permissions.
+        if ($role->code === 'tenant-admin') {
+            return true;
+        }
+
+        return $role->permissions->contains('name', $permission);
     }
 
     public function can(User $user, string $permission): bool
