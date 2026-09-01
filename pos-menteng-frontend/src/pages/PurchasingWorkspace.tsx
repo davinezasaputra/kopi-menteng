@@ -29,12 +29,53 @@ const sections: Array<{ key: Section; label: string; permission: string }> = [
   { key: 'reports', label: 'Reports', permission: 'purchasing.reporting.view' },
 ];
 
-const labelOf = (row: Row, keys: string[]) => {
+const labelOf = (row: Row, keys: string[]): string => {
   for (const key of keys) {
     const value = row[key];
-    if (value !== undefined && value !== null && String(value) !== '') return String(value);
+    if (value === undefined || value === null) continue;
+    
+    // Handle nested objects (e.g., supplier: { name: 'PT ABC' })
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      const objValue = value as Record<string, unknown>;
+      // Try to extract common label fields from nested object
+      const nestedLabel = objValue.name ?? objValue.label ?? objValue.code ?? objValue.title;
+      if (nestedLabel !== undefined && nestedLabel !== null && String(nestedLabel) !== '') {
+        return String(nestedLabel);
+      }
+      // If no label found in object, try next key
+      continue;
+    }
+    
+    if (String(value) !== '') return String(value);
   }
   return row.id ? `#${row.id}` : '-';
+};
+
+const dateOf = (row: Row, keys: string[] = ['order_date', 'invoice_date', 'received_date', 'payment_date', 'created_at']): string => {
+  for (const key of keys) {
+    const value = row[key];
+    if (value && typeof value === 'string') {
+      // Parse and format date properly (not raw UTC)
+      try {
+        const dateStr = value.slice(0, 10); // YYYY-MM-DD format
+        return dateStr;
+      } catch {
+        // Fall through to next key
+      }
+    }
+  }
+  return '';
+};
+
+const totalOf = (row: Row, keys: string[] = ['grand_total', 'total', 'amount', 'outstanding']): number => {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== null) {
+      const parsed = num(value);
+      if (parsed > 0 || parsed === 0) return parsed; // Include zero
+    }
+  }
+  return 0;
 };
 
 const money = (value: unknown) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -208,13 +249,13 @@ export default function PurchasingWorkspace() {
 
   const summary = useMemo(() => {
     if (section === 'reports') return rows.length ? rows[0] : {};
-    return { count: rows.length, amount: rows.reduce((sum, row) => sum + num(row.total ?? row.amount ?? row.allocated_amount ?? row.outstanding), 0) };
+    return { count: rows.length, amount: rows.reduce((sum, row) => sum + totalOf(row), 0) };
   }, [rows, section]);
 
   const statusOf = (row: Row) => String(row.status ?? row.state ?? '—').replaceAll('_', ' ');
 
   return <div className="flex h-screen w-full bg-stone-50 font-sans text-stone-800"><AdminSidebar activePage="purchasing-workspace" /><div className="flex min-w-0 flex-1 flex-col overflow-hidden"><header className="border-b border-stone-200 bg-white px-8 py-5"><div className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">ERP · Purchasing</div><h1 className="mt-1 text-2xl font-extrabold text-stone-900">Purchasing Workspace</h1><p className="mt-1 text-sm text-stone-500">Kelola seluruh siklus procurement tanpa JSON atau ID teknis.</p></header><div className="border-b border-stone-200 bg-white px-6"><div className="flex gap-1 overflow-x-auto py-3">{allowedSections.map(item => <button key={item.key} onClick={() => { setSection(item.key); reset(); }} className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold ${section === item.key ? 'bg-amber-700 text-white' : 'text-stone-500 hover:bg-stone-100'}`}>{item.label}</button>)}</div></div><main className="min-h-0 flex-1 overflow-y-auto p-6 lg:p-8"><div className="mb-5 grid gap-4 sm:grid-cols-3"><div className="rounded-2xl border border-stone-200 bg-white p-5"><div className="text-xs font-bold uppercase text-stone-500">Records</div><div className="mt-2 text-2xl font-extrabold">{section === 'reports' ? '—' : rows.length}</div></div><div className="rounded-2xl border border-stone-200 bg-white p-5"><div className="text-xs font-bold uppercase text-stone-500">Aggregate</div><div className="mt-2 text-xl font-extrabold">{section === 'reports' ? 'Live Report' : money(summary.amount)}</div></div><div className="rounded-2xl border border-stone-200 bg-white p-5 flex items-center justify-between"><div><div className="text-xs font-bold uppercase text-stone-500">Workflow</div><div className="mt-2 text-sm font-bold text-stone-700">{sections.find(item => item.key === section)?.label}</div></div>{section !== 'reports' && <button onClick={() => setShowForm(true)} className="rounded-xl bg-amber-700 px-4 py-2.5 text-sm font-bold text-white">+ Tambah</button>}</div></div>
       {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-      {loading ? <div className="rounded-2xl border border-stone-200 bg-white p-10 text-center text-sm text-stone-500">Memuat data...</div> : section === 'reports' ? <div className="grid gap-4 md:grid-cols-3">{rows.map((row, index) => <div key={index} className="rounded-2xl border border-stone-200 bg-white p-5"><div className="text-xs uppercase tracking-wide text-stone-500">{labelOf(row, ['name','supplier_name','period','report'])}</div><div className="mt-3 text-2xl font-extrabold text-stone-900">{money(row.amount ?? row.total ?? row.value)}</div><pre className="mt-4 max-h-40 overflow-auto rounded-xl bg-stone-950 p-3 text-[11px] text-stone-200">{JSON.stringify(row, null, 2)}</pre></div>)}</div> : <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white"><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500"><tr><th className="px-5 py-3 text-left">Document</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-left">Partner</th><th className="px-5 py-3 text-right">Amount</th><th className="px-5 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-stone-100">{rows.map((row, index) => <tr key={String(row.id ?? index)} className="hover:bg-stone-50"><td className="px-5 py-4"><div className="font-bold text-stone-900">{labelOf(row, ['order_number','requisition_number','receipt_number','invoice_number','payment_number','return_number','credit_note_number','code','name'])}</div><div className="text-xs text-stone-500">{row.created_at ? String(row.created_at).slice(0, 10) : ''}</div></td><td className="px-5 py-4"><span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold capitalize">{statusOf(row)}</span></td><td className="px-5 py-4 text-stone-600">{labelOf(row, ['supplier_name','supplier','name','contact_name'])}</td><td className="px-5 py-4 text-right font-bold">{money(row.total ?? row.amount ?? row.allocated_amount ?? row.outstanding)}</td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-1">{section === 'orders' && ['draft','submitted','pending_approval'].includes(String(row.status ?? '')) && <button onClick={() => void action(row, 'submit')} className="rounded-lg px-2 py-1 text-xs font-bold text-amber-700 hover:bg-amber-50">Submit</button>}{section === 'orders' && ['submitted','pending_approval'].includes(String(row.status ?? '')) && can('purchasing.order.approve') && <button onClick={() => void action(row, 'approve')} className="rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">Approve</button>}{section === 'orders' && ['submitted','pending_approval'].includes(String(row.status ?? '')) && can('purchasing.order.approve') && <button onClick={() => void action(row, 'reject')} className="rounded-lg px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50">Reject</button>}{section === 'orders' && ['draft','submitted','pending_approval'].includes(String(row.status ?? '')) && <button onClick={() => void action(row, 'cancel')} className="rounded-lg px-2 py-1 text-xs font-bold text-stone-600 hover:bg-stone-100">Cancel</button>}</div></td></tr>)}</tbody></table>{rows.length === 0 && <div className="p-10 text-center text-sm text-stone-500">Belum ada data untuk menu ini.</div>}</div></div>}
+      {loading ? <div className="rounded-2xl border border-stone-200 bg-white p-10 text-center text-sm text-stone-500">Memuat data...</div> : section === 'reports' ? <div className="grid gap-4 md:grid-cols-3">{rows.map((row, index) => <div key={index} className="rounded-2xl border border-stone-200 bg-white p-5"><div className="text-xs uppercase tracking-wide text-stone-500">{labelOf(row, ['name','supplier_name','period','report'])}</div><div className="mt-3 text-2xl font-extrabold text-stone-900">{money(row.amount ?? row.total ?? row.value)}</div><pre className="mt-4 max-h-40 overflow-auto rounded-xl bg-stone-950 p-3 text-[11px] text-stone-200">{JSON.stringify(row, null, 2)}</pre></div>)}</div> : <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white"><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500"><tr><th className="px-5 py-3 text-left">Document</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-left">Partner</th><th className="px-5 py-3 text-right">Amount</th><th className="px-5 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-stone-100">{rows.map((row, index) => <tr key={String(row.id ?? index)} className="hover:bg-stone-50"><td className="px-5 py-4"><div className="font-bold text-stone-900">{labelOf(row, ['order_number','requisition_number','receipt_number','invoice_number','payment_number','return_number','credit_note_number','code','name'])}</div><div className="text-xs text-stone-500">{dateOf(row)}</div></td><td className="px-5 py-4"><span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold capitalize">{statusOf(row)}</span></td><td className="px-5 py-4 text-stone-600">{labelOf(row, ['supplier', 'contact_name', 'name'])}</td><td className="px-5 py-4 text-right font-bold">{money(totalOf(row))}</td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-1">{section === 'orders' && ['draft','submitted','pending_approval'].includes(String(row.status ?? '')) && <button onClick={() => void action(row, 'submit')} className="rounded-lg px-2 py-1 text-xs font-bold text-amber-700 hover:bg-amber-50">Submit</button>}{section === 'orders' && ['submitted','pending_approval'].includes(String(row.status ?? '')) && can('purchasing.order.approve') && <button onClick={() => void action(row, 'approve')} className="rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">Approve</button>}{section === 'orders' && ['submitted','pending_approval'].includes(String(row.status ?? '')) && can('purchasing.order.approve') && <button onClick={() => void action(row, 'reject')} className="rounded-lg px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50">Reject</button>}{section === 'orders' && ['draft','submitted','pending_approval'].includes(String(row.status ?? '')) && <button onClick={() => void action(row, 'cancel')} className="rounded-lg px-2 py-1 text-xs font-bold text-stone-600 hover:bg-stone-100">Cancel</button>}</div></td></tr>)}</tbody></table>{rows.length === 0 && <div className="p-10 text-center text-sm text-stone-500">Belum ada data untuk menu ini.</div>}</div></div>}
     </main>{renderForm()}</div></div>;
 }
