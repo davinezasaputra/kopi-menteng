@@ -65,6 +65,8 @@ class InventoryService
             $firstId = min((int) $fromWarehouse->id, (int) $toWarehouse->id);
             $secondId = max((int) $fromWarehouse->id, (int) $toWarehouse->id);
             $balances = InventoryBalance::query()
+                ->where('tenant_id', $membership->tenant_id)
+                ->where('company_id', $membership->company_id)
                 ->where('product_id', $product->id)
                 ->whereIn('warehouse_id', [$firstId, $secondId])
                 ->lockForUpdate()
@@ -89,9 +91,12 @@ class InventoryService
             $source = $balances->get($fromWarehouse->id);
             $destination = $balances->get($toWarehouse->id);
             $sourceBefore = (float) $source->quantity;
+            $sourceReserved = (float) $source->reserved_quantity;
+            $sourceAvailable = $sourceBefore - $sourceReserved;
             $destinationBefore = (float) $destination->quantity;
-            if ($sourceBefore < $quantity) {
-                throw ValidationException::withMessages(['quantity' => "Insufficient stock in source warehouse. Available: {$sourceBefore}."]);
+
+            if ($sourceAvailable < $quantity) {
+                throw ValidationException::withMessages(['quantity' => "Insufficient available stock in source warehouse. Available: {$sourceAvailable}."]);
             }
 
             $sourceAfter = $sourceBefore - $quantity;
@@ -99,7 +104,7 @@ class InventoryService
             $cost = $unitCost > 0 ? $unitCost : (float) $source->average_cost;
 
             $source->quantity = $sourceAfter;
-            $source->available_quantity = $sourceAfter - (float) $source->reserved_quantity;
+            $source->available_quantity = $sourceAfter - $sourceReserved;
             $source->save();
 
             if ($cost > 0) {
@@ -184,12 +189,18 @@ class InventoryService
         if ((int) $warehouse->branch_id !== (int) $membership->branch_id) {
             throw ValidationException::withMessages(['warehouse_id' => 'Warehouse is outside the active branch.']);
         }
+        if ((int) $warehouse->branch?->company_id !== (int) $membership->company_id) {
+            throw ValidationException::withMessages(['warehouse_id' => 'Warehouse is outside the active company.']);
+        }
         if ((int) $product->tenant_id !== (int) $membership->tenant_id) {
             throw ValidationException::withMessages(['product_id' => 'Product is outside the active tenant.']);
         }
 
         return DB::transaction(function () use ($membership, $warehouse, $product, $delta, $unitCost, $movementType, $referenceType, $referenceId, $notes) {
             $balance = InventoryBalance::query()
+                ->where('tenant_id', $membership->tenant_id)
+                ->where('company_id', $membership->company_id)
+                ->where('branch_id', $warehouse->branch_id)
                 ->where('warehouse_id', $warehouse->id)
                 ->where('product_id', $product->id)
                 ->lockForUpdate()
@@ -209,6 +220,12 @@ class InventoryService
             }
 
             $before = (float) $balance->quantity;
+            $reserved = (float) $balance->reserved_quantity;
+            $available = $before - $reserved;
+            if ($delta < 0 && $available < abs($delta)) {
+                throw ValidationException::withMessages(['quantity' => "Insufficient available stock. Available: {$available}."]);
+            }
+
             $after = $before + $delta;
             if ($after < 0) {
                 throw ValidationException::withMessages(['quantity' => "Insufficient stock. Available: {$before}."]);
@@ -220,7 +237,7 @@ class InventoryService
                 $balance->last_cost = $unitCost;
             }
             $balance->quantity = $after;
-            $balance->available_quantity = $after - (float) $balance->reserved_quantity;
+            $balance->available_quantity = $after - $reserved;
             $balance->save();
 
             StockMovement::create([

@@ -1,176 +1,18 @@
 <?php
-
 namespace App\Domain\Inventory\Services;
-
 use App\Domain\Audit\Services\AuditService;
-use App\Domain\Inventory\Models\InventoryBalance;
-use App\Domain\Inventory\Models\InventoryReservation;
-use App\Domain\Inventory\Models\InventoryReservationItem;
+use App\Domain\Inventory\Models\{InventoryBalance,InventoryReservation,InventoryReservationItem,StockMovement};
 use App\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-
 class InventoryReservationService
 {
-    public function __construct(
-        private readonly TenantContext $context,
-        private readonly AuditService $audit,
-    ) {}
-
-    public function reserve(Warehouse $warehouse, array $items, ?string $referenceType = null, ?string $referenceId = null, ?string $expiresAt = null, ?string $notes = null): InventoryReservation
-    {
-        $membership = $this->context->membership();
-        if (! $membership) {
-            throw ValidationException::withMessages(['context' => 'No active ERP context.']);
-        }
-        if ((int) $warehouse->branch_id !== (int) $membership->branch_id) {
-            throw ValidationException::withMessages(['warehouse_id' => 'Warehouse is outside the active branch.']);
-        }
-
-        return DB::transaction(function () use ($membership, $warehouse, $items, $referenceType, $referenceId, $expiresAt, $notes) {
-            $reservation = InventoryReservation::create([
-                'tenant_id' => $membership->tenant_id,
-                'company_id' => $membership->company_id,
-                'branch_id' => $membership->branch_id,
-                'warehouse_id' => $warehouse->id,
-                'reservation_number' => 'RES-' . now()->format('YmdHis') . '-' . Str::upper(Str::random(6)),
-                'reference_type' => $referenceType,
-                'reference_id' => $referenceId,
-                'status' => 'active',
-                'expires_at' => $expiresAt,
-                'created_by' => auth()->id(),
-                'request_id' => request()->attributes->get('request_id'),
-                'notes' => $notes,
-            ]);
-
-            foreach ($items as $item) {
-                $product = Product::findOrFail($item['product_id']);
-                if ((int) $product->tenant_id !== (int) $membership->tenant_id) {
-                    throw ValidationException::withMessages(['items' => 'One or more products are outside the active tenant.']);
-                }
-
-                $quantity = (float) $item['quantity'];
-                if ($quantity <= 0) {
-                    throw ValidationException::withMessages(['items' => 'Reservation quantity must be greater than zero.']);
-                }
-
-                $balance = InventoryBalance::query()
-                    ->where('tenant_id', $membership->tenant_id)
-                    ->where('company_id', $membership->company_id)
-                    ->where('branch_id', $warehouse->branch_id)
-                    ->where('warehouse_id', $warehouse->id)
-                    ->where('product_id', $product->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $balance) {
-                    throw ValidationException::withMessages(['items' => "No inventory balance exists for {$product->name} in this warehouse."]);
-                }
-
-                if ((float) $balance->available_quantity < $quantity) {
-                    throw ValidationException::withMessages([
-                        'items' => "Insufficient available stock for {$product->name}. Available: {$balance->available_quantity}.",
-                    ]);
-                }
-
-                $balance->reserved_quantity = (float) $balance->reserved_quantity + $quantity;
-                $balance->available_quantity = (float) $balance->quantity - (float) $balance->reserved_quantity;
-                $balance->save();
-
-                InventoryReservationItem::create([
-                    'inventory_reservation_id' => $reservation->id,
-                    'product_id' => $product->id,
-                    'quantity' => $quantity,
-                    'fulfilled_quantity' => 0,
-                ]);
-            }
-
-            $reservation->load(['items.product','warehouse']);
-            $this->audit->record('created', 'inventory_reservation', $reservation, null, $reservation->toArray());
-            return $reservation;
-        });
-    }
-
-    public function release(InventoryReservation $reservation): InventoryReservation
-    {
-        return DB::transaction(function () use ($reservation) {
-            $this->assertContext($reservation);
-            $reservation = InventoryReservation::query()->with('items')->lockForUpdate()->findOrFail($reservation->id);
-            if ($reservation->status !== 'active') {
-                throw ValidationException::withMessages(['status' => 'Only active reservations can be released.']);
-            }
-
-            foreach ($reservation->items as $item) {
-                $balance = InventoryBalance::query()
-                    ->where('warehouse_id', $reservation->warehouse_id)
-                    ->where('product_id', $item->product_id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-                $balance->reserved_quantity = max(0, (float) $balance->reserved_quantity - (float) $item->quantity);
-                $balance->available_quantity = (float) $balance->quantity - (float) $balance->reserved_quantity;
-                $balance->save();
-            }
-
-            $old = $reservation->only(['status']);
-            $reservation->status = 'released';
-            $reservation->released_by = auth()->id();
-            $reservation->released_at = now();
-            $reservation->save();
-            $reservation->load(['items.product','warehouse']);
-            $this->audit->record('released', 'inventory_reservation', $reservation, $old, ['status' => 'released']);
-            return $reservation;
-        });
-    }
-
-    public function fulfill(InventoryReservation $reservation): InventoryReservation
-    {
-        return DB::transaction(function () use ($reservation) {
-            $this->assertContext($reservation);
-            $reservation = InventoryReservation::query()->with('items')->lockForUpdate()->findOrFail($reservation->id);
-            if ($reservation->status !== 'active') {
-                throw ValidationException::withMessages(['status' => 'Only active reservations can be fulfilled.']);
-            }
-            if ($reservation->expires_at && $reservation->expires_at->isPast()) {
-                throw ValidationException::withMessages(['expires_at' => 'Reservation has expired.']);
-            }
-
-            foreach ($reservation->items as $item) {
-                $balance = InventoryBalance::query()
-                    ->where('warehouse_id', $reservation->warehouse_id)
-                    ->where('product_id', $item->product_id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-                $qty = (float) $item->quantity;
-                if ((float) $balance->reserved_quantity < $qty || (float) $balance->quantity < $qty) {
-                    throw ValidationException::withMessages(['items' => 'Reserved quantity is no longer available for fulfillment.']);
-                }
-                $balance->reserved_quantity = (float) $balance->reserved_quantity - $qty;
-                $balance->quantity = (float) $balance->quantity - $qty;
-                $balance->available_quantity = (float) $balance->quantity - (float) $balance->reserved_quantity;
-                $balance->save();
-                $item->fulfilled_quantity = $qty;
-                $item->save();
-            }
-
-            $old = $reservation->only(['status']);
-            $reservation->status = 'fulfilled';
-            $reservation->fulfilled_by = auth()->id();
-            $reservation->fulfilled_at = now();
-            $reservation->save();
-            $reservation->load(['items.product','warehouse']);
-            $this->audit->record('fulfilled', 'inventory_reservation', $reservation, $old, ['status' => 'fulfilled']);
-            return $reservation;
-        });
-    }
-
-    private function assertContext(InventoryReservation $reservation): void
-    {
-        $membership = $this->context->membership();
-        if (! $membership || (int) $reservation->tenant_id !== (int) $membership->tenant_id || (int) $reservation->company_id !== (int) $membership->company_id || (int) $reservation->branch_id !== (int) $membership->branch_id) {
-            throw ValidationException::withMessages(['reservation' => 'Reservation is outside the active ERP context.']);
-        }
-    }
+ public function __construct(private readonly TenantContext $context,private readonly AuditService $audit){}
+ public function reserve(Warehouse $warehouse,array $items,?string $referenceType=null,?string $referenceId=null,?string $expiresAt=null,?string $notes=null):InventoryReservation{ $m=$this->context->membership(); if(!$m)throw ValidationException::withMessages(['context'=>'No active ERP context.']); if((int)$warehouse->branch_id!==(int)$m->branch_id)throw ValidationException::withMessages(['warehouse_id'=>'Warehouse is outside the active branch.']); return DB::transaction(function()use($m,$warehouse,$items,$referenceType,$referenceId,$expiresAt,$notes){$r=InventoryReservation::create(['tenant_id'=>$m->tenant_id,'company_id'=>$m->company_id,'branch_id'=>$m->branch_id,'warehouse_id'=>$warehouse->id,'reservation_number'=>'RES-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6)),'reference_type'=>$referenceType,'reference_id'=>$referenceId,'status'=>'active','expires_at'=>$expiresAt,'created_by'=>auth()->id(),'request_id'=>request()->attributes->get('request_id'),'notes'=>$notes]);foreach($items as $i){$p=Product::findOrFail($i['product_id']);if((int)$p->tenant_id!==(int)$m->tenant_id)throw ValidationException::withMessages(['items'=>'One or more products are outside the active tenant.']);$q=(float)$i['quantity'];if($q<=0)throw ValidationException::withMessages(['items'=>'Reservation quantity must be greater than zero.']);$b=InventoryBalance::query()->where('tenant_id',$m->tenant_id)->where('company_id',$m->company_id)->where('branch_id',$warehouse->branch_id)->where('warehouse_id',$warehouse->id)->where('product_id',$p->id)->lockForUpdate()->first();if(!$b)throw ValidationException::withMessages(['items'=>"No inventory balance exists for {$p->name} in this warehouse."]);if((float)$b->available_quantity<$q)throw ValidationException::withMessages(['items'=>"Insufficient available stock for {$p->name}. Available: {$b->available_quantity}."]);$b->reserved_quantity=(float)$b->reserved_quantity+$q;$b->available_quantity=(float)$b->quantity-(float)$b->reserved_quantity;$b->save();InventoryReservationItem::create(['inventory_reservation_id'=>$r->id,'product_id'=>$p->id,'quantity'=>$q,'fulfilled_quantity'=>0]);}$r->load(['items.product','warehouse']);$this->audit->record('created','inventory_reservation',$r,null,$r->toArray());return $r;});}
+ public function release(InventoryReservation $reservation):InventoryReservation{return DB::transaction(function()use($reservation){$this->assertContext($reservation);$r=InventoryReservation::query()->with('items')->lockForUpdate()->findOrFail($reservation->id);if($r->status!=='active')throw ValidationException::withMessages(['status'=>'Only active reservations can be released.']);foreach($r->items as $i){$b=InventoryBalance::query()->where('warehouse_id',$r->warehouse_id)->where('product_id',$i->product_id)->lockForUpdate()->firstOrFail();$b->reserved_quantity=max(0,(float)$b->reserved_quantity-(float)$i->quantity);$b->available_quantity=(float)$b->quantity-(float)$b->reserved_quantity;$b->save();}$old=$r->only(['status']);$r->status='released';$r->released_by=auth()->id();$r->released_at=now();$r->save();$r->load(['items.product','warehouse']);$this->audit->record('released','inventory_reservation',$r,$old,['status'=>'released']);return $r;});}
+ public function fulfill(InventoryReservation $reservation):InventoryReservation{return DB::transaction(function()use($reservation){$this->assertContext($reservation);$r=InventoryReservation::query()->with('items')->lockForUpdate()->findOrFail($reservation->id);if($r->status!=='active')throw ValidationException::withMessages(['status'=>'Only active reservations can be fulfilled.']);if($r->expires_at&&$r->expires_at->isPast())throw ValidationException::withMessages(['expires_at'=>'Reservation has expired.']);foreach($r->items as $i){$b=InventoryBalance::query()->where('warehouse_id',$r->warehouse_id)->where('product_id',$i->product_id)->lockForUpdate()->firstOrFail();$q=(float)$i->quantity;if((float)$b->reserved_quantity<$q||(float)$b->quantity<$q)throw ValidationException::withMessages(['items'=>'Reserved quantity is no longer available for fulfillment.']);$before=(float)$b->quantity;$cost=(float)$b->average_cost;$b->reserved_quantity=(float)$b->reserved_quantity-$q;$b->quantity=$before-$q;$b->available_quantity=(float)$b->quantity-(float)$b->reserved_quantity;$b->save();$i->fulfilled_quantity=$q;$i->save();StockMovement::create(['tenant_id'=>$r->tenant_id,'company_id'=>$r->company_id,'branch_id'=>$r->branch_id,'warehouse_id'=>$r->warehouse_id,'product_id'=>$i->product_id,'movement_type'=>'reservation_issue','quantity'=>-$q,'unit_cost'=>$cost,'balance_before'=>$before,'balance_after'=>(float)$b->quantity,'reference_type'=>'inventory_reservation','reference_id'=>(string)$r->id,'created_by'=>auth()->id(),'request_id'=>request()->attributes->get('request_id'),'notes'=>$r->notes,'created_at'=>now()]);$legacy=InventoryBalance::query()->where('tenant_id',$r->tenant_id)->where('product_id',$i->product_id)->sum('quantity');Product::whereKey($i->product_id)->update(['stock'=>max(0,(int)round((float)$legacy))]);}$old=$r->only(['status']);$r->status='fulfilled';$r->fulfilled_by=auth()->id();$r->fulfilled_at=now();$r->save();$r->load(['items.product','warehouse']);$this->audit->record('fulfilled','inventory_reservation',$r,$old,['status'=>'fulfilled']);return $r;});}
+ private function assertContext(InventoryReservation $reservation):void{$m=$this->context->membership();if(!$m||(int)$reservation->tenant_id!==(int)$m->tenant_id||(int)$reservation->company_id!==(int)$m->company_id||(int)$reservation->branch_id!==(int)$m->branch_id)throw ValidationException::withMessages(['reservation'=>'Reservation is outside the active ERP context.']);}
 }
