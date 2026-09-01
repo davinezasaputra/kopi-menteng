@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\PurchasingController;
 use App\Http\Controllers\Api\SalesOrderController;
 use App\Http\Controllers\Api\SalesApprovalController;
 use App\Http\Controllers\Api\SalesFulfillmentController;
+use App\Http\Controllers\Api\SalesShipmentController;
 use App\Http\Controllers\Api\PurchasingReconciliationController;
 use App\Http\Controllers\Api\PurchasingReportingController;
 use App\Http\Controllers\Api\ErpAccountingController;
@@ -124,6 +125,9 @@ Route::middleware('request.id')->group(function () {
             Route::get('/sales/fulfillments/{fulfillment}', [SalesFulfillmentController::class, 'show'])->middleware('permission:sales.fulfillment.view');
             Route::post('/sales/fulfillments/{fulfillment}/pick', [SalesFulfillmentController::class, 'pick'])->middleware('permission:sales.fulfillment.pick');
             Route::post('/sales/fulfillments/{fulfillment}/pack', [SalesFulfillmentController::class, 'pack'])->middleware('permission:sales.fulfillment.pack');
+            Route::get('/sales/shipments', [SalesShipmentController::class, 'index'])->middleware('permission:sales.shipment.view');
+            Route::post('/sales/shipments', [SalesShipmentController::class, 'store'])->middleware('permission:sales.shipment.create');
+            Route::get('/sales/shipments/{shipment}', [SalesShipmentController::class, 'show'])->middleware('permission:sales.shipment.view');
             Route::get('/purchasing/budgets', [PurchasingController::class, 'purchasingBudget'])->middleware('permission:purchasing.budget.view');
             Route::get('/purchasing/approval-matrix', [PurchasingController::class, 'approvalMatrix'])->middleware('permission:purchasing.approval_matrix.view');
             Route::post('/purchasing/approval-matrix', [PurchasingController::class, 'storeApprovalMatrix'])->middleware('permission:purchasing.approval_matrix.create');
