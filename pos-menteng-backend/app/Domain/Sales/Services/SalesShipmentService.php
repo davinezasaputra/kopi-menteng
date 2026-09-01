@@ -3,6 +3,8 @@
 namespace App\Domain\Sales\Services;
 
 use App\Domain\Audit\Services\AuditService;
+use App\Domain\Accounting\Models\ErpAccount;
+use App\Domain\Accounting\Services\ErpAccountingService;
 use App\Domain\Core\Services\DocumentNumberService;
 use App\Domain\Inventory\Models\InventoryReservation;
 use App\Domain\Inventory\Services\InventoryReservationService;
@@ -19,6 +21,7 @@ class SalesShipmentService
         private readonly DocumentNumberService $numbers,
         private readonly InventoryReservationService $reservations,
         private readonly AuditService $audit,
+        private readonly ErpAccountingService $accounting,
     ) {}
 
     public function ship(
@@ -92,6 +95,21 @@ class SalesShipmentService
 
             // Physical stock issue happens exactly once inside the existing
             // reservation fulfillment engine.
+            // Capture inventory cost before the reservation fulfillment changes the balance.
+            $totalCost = round(
+                $row->items->sum(function ($item) use ($row) {
+                    return (float)$item->packed_quantity *
+                        (float)\App\Domain\Inventory\Models\InventoryBalance::query()
+                            ->where('tenant_id',$row->tenant_id)
+                            ->where('company_id',$row->company_id)
+                            ->where('branch_id',$row->branch_id)
+                            ->where('warehouse_id',$row->warehouse_id)
+                            ->where('product_id',$item->product_id)
+                            ->value('average_cost');
+                }),
+                2
+            );
+
             $this->reservations->fulfill($reservation);
 
             $shipment=SalesShipment::create([
@@ -112,6 +130,22 @@ class SalesShipmentService
                 'request_id'=>request()->attributes->get('request_id'),
                 'notes'=>$notes,
             ]);
+
+            $cogs=ErpAccount::where('tenant_id',$row->tenant_id)->where('company_id',$row->company_id)->where('code','5000')->where('is_active',true)->where('is_postable',true)->firstOrFail();
+            $inventory=ErpAccount::where('tenant_id',$row->tenant_id)->where('company_id',$row->company_id)->where('code','1100')->where('is_active',true)->where('is_postable',true)->firstOrFail();
+
+            if ($totalCost > 0) {
+                $this->accounting->postSourceJournal(
+                    'sales_shipment',
+                    (string)$shipment->id,
+                    'Sales shipment '.$shipment->shipment_number,
+                    [
+                        ['account_id'=>$cogs->id,'debit'=>$totalCost,'credit'=>0,'description'=>'Recognize cost of goods sold'],
+                        ['account_id'=>$inventory->id,'debit'=>0,'credit'=>$totalCost,'description'=>'Reduce inventory asset'],
+                    ],
+                    (int)$row->branch_id
+                );
+            }
 
             $old=$row->only(['status']);
             $row->status='fulfilled';
