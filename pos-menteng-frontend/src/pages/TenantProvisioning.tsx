@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import api from '../core/api/client';
@@ -6,6 +6,7 @@ import { isDeveloper } from '../core/auth/permissions';
 import toast from 'react-hot-toast';
 
 type Step = 1 | 2 | 3 | 4;
+type Section = 'tenant' | 'company' | 'branch' | 'admin';
 
 const plans = [
   { code: 'starter', name: 'Starter', features: ['pos', 'inventory'], max_users: 5, max_branches: 1 },
@@ -17,7 +18,7 @@ const plans = [
 function Field({ label, value, onChange, type = 'text', placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string }) {
   return <label className="block"><span className="mb-1 block text-xs font-bold text-stone-500">{label}</span><input type={type} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm outline-none focus:border-amber-500" /></label>;
 }
-function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
+function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
   return <label className="block"><span className="mb-1 block text-xs font-bold text-stone-500">{label}</span><select value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm">{children}</select></label>;
 }
 
@@ -35,8 +36,8 @@ export default function TenantProvisioning() {
   });
 
   const selectedPlan = useMemo(() => plans.find(plan => plan.code === form.plan)!, [form.plan]);
-  const update = <K extends keyof typeof form>(section: K, key: keyof (typeof form)[K], value: string) => {
-    setForm(current => ({ ...current, [section]: { ...(current[section] as object), [key]: value } }));
+  const update = (section: Section, key: string, value: string) => {
+    setForm(current => ({ ...current, [section]: { ...(current[section] as Record<string, string>), [key]: value } }));
   };
 
   const validateStep = () => {
@@ -52,12 +53,7 @@ export default function TenantProvisioning() {
     if (validation) return toast.error(validation);
     setSaving(true);
     try {
-      const response = await api.post('/v1/developer/provision-tenant', {
-        ...form,
-        amount: Number(form.amount || 0),
-        expires_at: form.expires_at || null,
-        auto_renew: form.auto_renew,
-      });
+      const response = await api.post('/v1/developer/provision-tenant', { ...form, amount: Number(form.amount || 0), expires_at: form.expires_at || null, auto_renew: form.auto_renew });
       toast.success(`Tenant ${response.data?.data?.tenant?.name ?? form.tenant.name} berhasil dibuat.`);
       navigate('/platform');
     } catch (error) {
@@ -70,7 +66,7 @@ export default function TenantProvisioning() {
 
   return <div className="flex min-h-screen bg-stone-50 text-stone-800"><AdminSidebar activePage="developer-console" /><main className="min-w-0 flex-1 overflow-auto p-6 lg:p-8"><div className="mx-auto max-w-5xl space-y-6">
     <header className="flex flex-wrap items-end justify-between gap-3"><div><div className="text-xs font-black uppercase tracking-[.18em] text-amber-700">Platform · Provisioning</div><h1 className="mt-1 text-3xl font-black">Buat Tenant Baru</h1><p className="mt-1 text-sm text-stone-500">Satu wizard membuat Tenant, Company, Branch, Tenant Admin, License, dan Subscription secara atomik.</p></div><button onClick={() => navigate('/platform')} className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold">Kembali</button></header>
-    <div className="grid grid-cols-4 gap-2">{(['Tenant', 'Company', 'Branch', 'Admin & License'] as const).map((label, index) => <button key={label} onClick={() => index + 1 < step || index + 1 === step ? setStep((index + 1) as Step) : undefined} className={`rounded-xl px-3 py-3 text-sm font-bold ${step === index + 1 ? 'bg-stone-900 text-white' : 'bg-white text-stone-500 border border-stone-200'}`}>{index + 1}. {label}</button>)}</div>
+    <div className="grid grid-cols-4 gap-2">{(['Tenant', 'Company', 'Branch', 'Admin & License'] as const).map((label, index) => <button key={label} onClick={() => index + 1 <= step && setStep((index + 1) as Step)} className={`rounded-xl px-3 py-3 text-sm font-bold ${step === index + 1 ? 'bg-stone-900 text-white' : 'border border-stone-200 bg-white text-stone-500'}`}>{index + 1}. {label}</button>)}</div>
     <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
       {step === 1 && <div className="space-y-5"><div><h2 className="text-xl font-black">Identitas Tenant</h2><p className="text-sm text-stone-500">Tenant adalah boundary utama data dan subscription.</p></div><div className="grid gap-4 md:grid-cols-2"><Field label="Nama Tenant" value={form.tenant.name} onChange={v => update('tenant', 'name', v)} placeholder="PT Contoh Indonesia" /><Field label="Kode Tenant" value={form.tenant.code} onChange={v => update('tenant', 'code', v.toUpperCase())} placeholder="CONT-001" /><Field label="Timezone" value={form.tenant.timezone} onChange={v => update('tenant', 'timezone', v)} /><Field label="Currency" value={form.tenant.currency} onChange={v => update('tenant', 'currency', v.toUpperCase())} /></div></div>}
       {step === 2 && <div className="space-y-5"><div><h2 className="text-xl font-black">Company Utama</h2><p className="text-sm text-stone-500">Minimal satu company menjadi induk branch pertama.</p></div><div className="grid gap-4 md:grid-cols-2"><Field label="Kode Company" value={form.company.code} onChange={v => update('company', 'code', v.toUpperCase())} placeholder="MAIN" /><Field label="Nama Company" value={form.company.name} onChange={v => update('company', 'name', v)} placeholder="PT Contoh Indonesia" /><Field label="Legal Name" value={form.company.legal_name} onChange={v => update('company', 'legal_name', v)} /><Field label="Email" value={form.company.email} onChange={v => update('company', 'email', v)} /><Field label="Telepon" value={form.company.phone} onChange={v => update('company', 'phone', v)} /><Field label="Alamat" value={form.company.address} onChange={v => update('company', 'address', v)} /></div></div>}
