@@ -9,6 +9,7 @@ use App\Domain\Purchasing\Models\SupplierInvoice;
 use App\Domain\Purchasing\Models\SupplierPayment;
 use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class PurchasingReportingService
 {
