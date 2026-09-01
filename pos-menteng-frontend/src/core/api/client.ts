@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type AxiosResponse } from 'axios';
 import { API_URL } from '../config/env';
 
 axios.defaults.baseURL = API_URL;
@@ -11,6 +11,36 @@ const requestPath = (url?: string) => {
   if (!url) return '';
   try { return new URL(url, API_URL).pathname; } catch { return url.split('?')[0] || ''; }
 };
+
+const legacyListPaths = [
+  /\/orders\/history$/,
+  /\/raw-materials$/,
+  /\/customers$/,
+  /\/employees(?:\/search)?$/,
+  /\/hrm\/(attendances|payrolls)$/,
+  /\/products$/,
+  /\/categories$/,
+];
+
+function normalizeLegacyListResponse(response: AxiosResponse): AxiosResponse {
+  const path = requestPath(response.config.url);
+  if (!legacyListPaths.some((pattern) => pattern.test(path))) return response;
+
+  const body = response.data as unknown;
+  if (!body || typeof body !== 'object') return response;
+
+  const wrapper = body as { data?: unknown };
+  if (
+    wrapper.data &&
+    typeof wrapper.data === 'object' &&
+    !Array.isArray(wrapper.data) &&
+    Array.isArray((wrapper.data as { data?: unknown }).data)
+  ) {
+    wrapper.data = (wrapper.data as { data: unknown[] }).data;
+  }
+
+  return response;
+}
 
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -44,16 +74,19 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
-axios.interceptors.response.use((response) => response, (error) => {
-  if (error.response?.status === 401) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('erp_context');
-    localStorage.removeItem('permissions');
-    localStorage.removeItem('foundation_loaded');
-  }
-  return Promise.reject(error);
-});
+axios.interceptors.response.use(
+  (response) => normalizeLegacyListResponse(response),
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('erp_context');
+      localStorage.removeItem('permissions');
+      localStorage.removeItem('foundation_loaded');
+    }
+    return Promise.reject(error);
+  },
+);
 
 export const api = axios;
 export default axios;
