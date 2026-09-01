@@ -2,6 +2,8 @@
 
 namespace App\Domain\Purchasing\Services;
 
+use App\Domain\Accounting\Models\ErpAccount;
+use App\Domain\Accounting\Services\ErpAccountingService;
 use App\Domain\Audit\Services\AuditService;
 use App\Domain\Core\Services\DocumentNumberService;
 use App\Domain\Purchasing\Models\GoodsReceipt;
@@ -17,6 +19,7 @@ class AccountsPayableService
         private readonly TenantContext $context,
         private readonly DocumentNumberService $numbers,
         private readonly AuditService $audit,
+        private readonly ErpAccountingService $accounting,
     ) {}
 
     public function createInvoice(
@@ -81,6 +84,30 @@ class AccountsPayableService
             ]);
 
             $invoice->load(['supplier','order','goodsReceipt','creator']);
+            $inventoryAccount = $this->accountByCode('1100');
+            $apAccount = $this->accountByCode('2100');
+
+            $this->accounting->postSourceJournal(
+                'supplier_invoice',
+                (string) $invoice->id,
+                'AP recognition for supplier invoice ' . $invoice->invoice_number,
+                [
+                    [
+                        'account_id' => $inventoryAccount->id,
+                        'debit' => $invoice->total_amount,
+                        'credit' => 0,
+                        'description' => 'Inventory received',
+                    ],
+                    [
+                        'account_id' => $apAccount->id,
+                        'debit' => 0,
+                        'credit' => $invoice->total_amount,
+                        'description' => 'Accounts payable',
+                    ],
+                ],
+                (int) $invoice->branch_id,
+            );
+
             $this->audit->record('created','supplier_invoice',$invoice,null,$invoice->toArray());
 
             return $invoice;
@@ -148,9 +175,47 @@ class AccountsPayableService
             $row->save();
 
             $payment->load(['supplier','invoice','payer']);
+            $apAccount = $this->accountByCode('2100');
+            $cashBankCode = $method === 'cash' ? '1000' : '1010';
+            $cashBankAccount = $this->accountByCode($cashBankCode);
+
+            $this->accounting->postSourceJournal(
+                'supplier_payment',
+                (string) $payment->id,
+                'AP payment for supplier invoice ' . $row->invoice_number,
+                [
+                    [
+                        'account_id' => $apAccount->id,
+                        'debit' => $amount,
+                        'credit' => 0,
+                        'description' => 'Accounts payable settlement',
+                    ],
+                    [
+                        'account_id' => $cashBankAccount->id,
+                        'debit' => 0,
+                        'credit' => $amount,
+                        'description' => $method === 'cash' ? 'Cash payment' : 'Bank payment',
+                    ],
+                ],
+                (int) $row->branch_id,
+            );
+
             $this->audit->record('created','supplier_payment',$payment,null,$payment->toArray());
 
             return $payment;
         });
+    }
+
+    private function accountByCode(string $code): ErpAccount
+    {
+        $membership = $this->context->membership();
+
+        return ErpAccount::query()
+            ->where('tenant_id', $membership->tenant_id)
+            ->where('company_id', $membership->company_id)
+            ->where('code', $code)
+            ->where('is_active', true)
+            ->where('is_postable', true)
+            ->firstOrFail();
     }
 }
