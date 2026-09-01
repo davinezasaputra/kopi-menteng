@@ -31,7 +31,7 @@ const modules: ModuleGroup[] = [
   { key:'erp-finance',label:'Finance & Accounting',items:[{key:'accounting',label:'Accounting / Finance',icon:'💲',path:'/accounting',anyOf:['accounting.journal.view','accounting.erp_account.view','accounting.report.view']},{key:'history',label:'Riwayat & Laporan',icon:'🧾',path:'/history',anyOf:['sales.reporting.view','accounting.report.view','inventory.stock.view']}] },
   { key:'erp-sales',label:'Sales',items:[{key:'customers',label:'Pelanggan',icon:'👤',path:'/customers',permission:'sales.order.view'},{key:'sales-workspace',label:'Sales Workspace',icon:'🧾',path:'/erp/operations/guided',anyOf:['sales.order.view','sales.order.create']}] }
  ]},
- { key:'pos',label:'POS',icon:'🛒',items:[{key:'pos',label:'Kasir',icon:'🛒',path:'/pos',permission:'pos.sale.view'}]},
+ { key:'pos',label:'POS',icon:'🛒',items:[{key:'pos',label:'Kasir',icon:'🛒',path:'/pos',permission:'pos.sale.view'},{key:'receipt-template',label:'Template Nota & Struk',icon:'🧾',path:'/admin/pos/receipt-template',permission:'pos.receipt_template.view'}]},
  { key:'crm',label:'CRM',icon:'🤝',items:[{key:'crm-customers',label:'Pelanggan',icon:'👤',path:'/customers',permission:'sales.order.view'}]},
  { key:'hrm',label:'HRM',icon:'🧑‍💼',items:[{key:'employees',label:'Karyawan',icon:'🧑‍💻',path:'/employees',permission:'hr.employee.view'},{key:'hrm',label:'HRD & Penggajian',icon:'💼',path:'/hrm',permission:'hr.employee.view'}]},
  { key:'administration',label:'Administration',icon:'⚙️',items:[{key:'users',label:'Users',icon:'👥',path:'/users',permission:'users.user.view'},{key:'foundation',label:'Organizations & Access',icon:'🔐',path:'/admin/foundation',permission:'rbac.role.view'}]}
