@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
 import Pos from './pages/Pos';
 import Inventory from './pages/Inventory';
+import InventoryOperations from './pages/InventoryOperations';
 import History from './pages/History';
 import RawMaterials from './pages/RawMaterials';
 import RawMaterialImport from './pages/RawMaterialImport';
@@ -108,6 +109,7 @@ function App() {
 
             <Route path="/pos" element={<ProtectedRoute requiredPermission="pos.sale.view"><Pos /></ProtectedRoute>} />
             <Route path="/inventory" element={<ProtectedRoute requiredPermission="inventory.stock.view"><Inventory /></ProtectedRoute>} />
+            <Route path="/inventory/operations" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><InventoryOperations /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute requiredAnyPermission={['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view']}><History /></ProtectedRoute>} />
             <Route path="/raw-materials" element={<ProtectedRoute requiredPermission="inventory.stock.view"><RawMaterials /></ProtectedRoute>} />
             <Route path="/raw-materials/import" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><RawMaterialImport /></ProtectedRoute>} />
