@@ -221,4 +221,6 @@ Route::middleware(['request.id','security.headers'])->group(function () {
     });
 });
 
-Route::get('/user', function (Request $request) { return $request->user(); })->middleware(['auth:sanctum', 'request.id']);
+Route::get('/ready', \App\Http\Controllers\Api\ReadinessController::class)->middleware('security.headers');
+
+Route::get('/user', function (Request $request) { return $request->user(); })->middleware(['auth:sanctum', 'request.id','security.headers']);
