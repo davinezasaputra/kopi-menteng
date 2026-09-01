@@ -9,45 +9,63 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // SQLite cannot drop a column while an index still references it.
-        if (Schema::hasTable('general_ledgers')) {
+        if (! Schema::hasTable('general_ledgers')) {
+            return;
+        }
+
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'pgsql') {
             $indexes = DB::select("SELECT indexname FROM pg_indexes WHERE tablename = 'general_ledgers'");
-            if (Schema::getConnection()->getDriverName() === 'pgsql') {
-                foreach ($indexes as $index) {
-                    $indexName = $index->indexname ?? null;
-                    if ($indexName && str_contains($indexName, 'general_ledgers_reference_type_reference_id')) {
-                        DB::statement('DROP INDEX IF EXISTS "'.$indexName.'"');
-                    }
-                }
-            } else {
-                $sqliteIndexes = DB::select("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'general_ledgers'");
-                foreach ($sqliteIndexes as $index) {
-                    $indexName = $index->name ?? null;
-                    if ($indexName && str_contains($indexName, 'general_ledgers_reference_type_reference_id')) {
-                        DB::statement('DROP INDEX IF EXISTS "'.$indexName.'"');
-                    }
+            foreach ($indexes as $index) {
+                $indexName = $index->indexname ?? null;
+                if ($indexName && str_contains($indexName, 'general_ledgers_reference_type_reference_id')) {
+                    DB::statement('DROP INDEX IF EXISTS "'.$indexName.'"');
                 }
             }
-
-            $drop = array_values(array_filter([
-                Schema::hasColumn('general_ledgers', 'reference_type') ? 'reference_type' : null,
-                Schema::hasColumn('general_ledgers', 'reference_id') ? 'reference_id' : null,
-            ]));
-
-            if ($drop) {
-                Schema::table('general_ledgers', function (Blueprint $table) use ($drop) {
-                    $table->dropColumn($drop);
-                });
-            }
-
-            if (! Schema::hasColumn('general_ledgers', 'reference_type') && ! Schema::hasColumn('general_ledgers', 'reference_id')) {
-                Schema::table('general_ledgers', function (Blueprint $table) {
-                    $table->string('reference_type')->nullable();
-                    $table->uuid('reference_id')->nullable();
-                    $table->index(['reference_type', 'reference_id']);
-                });
+        } elseif ($driver === 'sqlite') {
+            $indexes = DB::select("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'general_ledgers'");
+            foreach ($indexes as $index) {
+                $indexName = $index->name ?? null;
+                if ($indexName && str_contains($indexName, 'general_ledgers_reference_type_reference_id')) {
+                    DB::statement('DROP INDEX IF EXISTS "'.$indexName.'"');
+                }
             }
         }
+
+        $drop = [];
+        if (Schema::hasColumn('general_ledgers', 'reference_type')) {
+            $drop[] = 'reference_type';
+        }
+        if (Schema::hasColumn('general_ledgers', 'reference_id')) {
+            $drop[] = 'reference_id';
+        }
+
+        if ($drop) {
+            Schema::table('general_ledgers', function (Blueprint $table) use ($drop) {
+                $table->dropColumn($drop);
+            });
+        }
+
+        if (! Schema::hasColumn('general_ledgers', 'reference_type')) {
+            Schema::table('general_ledgers', function (Blueprint $table) {
+                $table->string('reference_type')->nullable();
+            });
+        }
+        if (! Schema::hasColumn('general_ledgers', 'reference_id')) {
+            Schema::table('general_ledgers', function (Blueprint $table) {
+                $table->uuid('reference_id')->nullable();
+            });
+        }
+
+        Schema::table('general_ledgers', function (Blueprint $table) use ($driver) {
+            $indexName = 'gl_reference_type_reference_id_idx';
+            try {
+                $table->index(['reference_type', 'reference_id'], $indexName);
+            } catch (\Throwable) {
+                // Index may already exist after a partially applied migration.
+            }
+        });
     }
 
     public function down(): void
@@ -56,10 +74,20 @@ return new class extends Migration
             return;
         }
 
-        $drop = array_values(array_filter([
-            Schema::hasColumn('general_ledgers', 'reference_type') ? 'reference_type' : null,
-            Schema::hasColumn('general_ledgers', 'reference_id') ? 'reference_id' : null,
-        ]));
+        $driver = Schema::getConnection()->getDriverName();
+        if ($driver === 'pgsql') {
+            DB::statement('DROP INDEX IF EXISTS "gl_reference_type_reference_id_idx"');
+        } elseif ($driver === 'sqlite') {
+            DB::statement('DROP INDEX IF EXISTS "gl_reference_type_reference_id_idx"');
+        }
+
+        $drop = [];
+        if (Schema::hasColumn('general_ledgers', 'reference_type')) {
+            $drop[] = 'reference_type';
+        }
+        if (Schema::hasColumn('general_ledgers', 'reference_id')) {
+            $drop[] = 'reference_id';
+        }
 
         if ($drop) {
             Schema::table('general_ledgers', function (Blueprint $table) use ($drop) {
