@@ -2,45 +2,52 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Audit\Services\AuditService;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class EmployeeController extends Controller
 {
-    public function index()
-    {
-        $employees = Employee::orderBy('created_at', 'desc')->get();
-
-        return response()->json([
-            'status' => 'success',
-            'data' => $employees,
-        ]);
+    public function __construct(
+        private readonly TenantContext $context,
+        private readonly AuditService $audit,
+    ) {
     }
 
-    public function show($id)
+    private function scopedQuery()
     {
-        $employee = Employee::find($id);
+        return Employee::query()
+            ->where('tenant_id', $this->context->tenantId())
+            ->where('company_id', $this->context->companyId())
+            ->where('branch_id', $this->context->branchId());
+    }
 
-        if (!$employee) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Karyawan tidak ditemukan.',
-            ], 404);
+    public function index(Request $request)
+    {
+        $employees = $this->scopedQuery()
+            ->orderByDesc('created_at')
+            ->paginate(min((int) $request->integer('per_page', 50), 100));
+
+        return response()->json(['status' => 'success', 'data' => $employees]);
+    }
+
+    public function show(string $id)
+    {
+        $employee = $this->scopedQuery()->find($id);
+        if (! $employee) {
+            return response()->json(['status' => 'error', 'message' => 'Karyawan tidak ditemukan.'], 404);
         }
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $employee,
-        ]);
+        return response()->json(['status' => 'success', 'data' => $employee]);
     }
 
     public function search(Request $request)
     {
         $keyword = trim((string) $request->query('q', ''));
-
-        $query = Employee::query();
+        $query = $this->scopedQuery();
 
         if ($keyword !== '') {
             $query->where(function ($builder) use ($keyword) {
@@ -50,13 +57,8 @@ class EmployeeController extends Controller
             });
         }
 
-        $employees = $query->orderBy('created_at', 'desc')->get();
-
-        return response()->json([
-            'status' => 'success',
-            'data' => $employees,
-            'count' => $employees->count(),
-        ]);
+        $employees = $query->orderByDesc('created_at')->paginate(min((int) $request->integer('per_page', 50), 100));
+        return response()->json(['status' => 'success', 'data' => $employees]);
     }
 
     public function store(Request $request)
@@ -71,26 +73,24 @@ class EmployeeController extends Controller
             'status' => 'nullable|in:active,inactive',
         ]);
 
+        $validated += [
+            'tenant_id' => $this->context->tenantId(),
+            'company_id' => $this->context->companyId(),
+            'branch_id' => $this->context->branchId(),
+        ];
         $validated['id'] = (string) Str::uuid();
 
         $employee = Employee::create($validated);
+        $this->audit->record('created', 'hrm.employee', $employee, null, $employee->toArray());
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Data karyawan berhasil ditambahkan.',
-            'data' => $employee,
-        ], 201);
+        return response()->json(['status' => 'success', 'message' => 'Data karyawan berhasil ditambahkan.', 'data' => $employee], 201);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
-        $employee = Employee::find($id);
-
-        if (!$employee) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Karyawan tidak ditemukan.',
-            ], 404);
+        $employee = $this->scopedQuery()->find($id);
+        if (! $employee) {
+            return response()->json(['status' => 'error', 'message' => 'Karyawan tidak ditemukan.'], 404);
         }
 
         $validated = $request->validate([
@@ -103,31 +103,24 @@ class EmployeeController extends Controller
             'status' => 'nullable|in:active,inactive',
         ]);
 
+        $old = $employee->toArray();
         $employee->update($validated);
+        $this->audit->record('updated', 'hrm.employee', $employee, $old, $employee->fresh()->toArray());
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Data karyawan berhasil diperbarui.',
-            'data' => $employee->fresh(),
-        ]);
+        return response()->json(['status' => 'success', 'message' => 'Data karyawan berhasil diperbarui.', 'data' => $employee->fresh()]);
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
-        $employee = Employee::find($id);
-
-        if (!$employee) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Karyawan tidak ditemukan.',
-            ], 404);
+        $employee = $this->scopedQuery()->find($id);
+        if (! $employee) {
+            return response()->json(['status' => 'error', 'message' => 'Karyawan tidak ditemukan.'], 404);
         }
 
+        $old = $employee->toArray();
         $employee->delete();
+        $this->audit->record('deleted', 'hrm.employee', $employee, $old, null);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Data karyawan berhasil dihapus.',
-        ]);
+        return response()->json(['status' => 'success', 'message' => 'Data karyawan berhasil dihapus.']);
     }
 }
