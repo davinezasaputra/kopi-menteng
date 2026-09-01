@@ -11,6 +11,8 @@ use App\Domain\Organization\Models\Tenant;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Purchasing\Models\PurchaseOrder;
 use App\Domain\Purchasing\Models\Supplier;
+use App\Models\Category;
+use App\Models\Product;
 use App\Models\User;
 use App\Support\Tenancy\OrganizationScope;
 use App\Support\Tenancy\TenantContext;
@@ -30,6 +32,8 @@ class ScopeSecurityAuditTest extends TestCase
     private Warehouse $warehouseA;
     private Warehouse $warehouseB;
     private Supplier $supplier;
+    private Category $category;
+    private Product $product;
     private User $user;
 
     protected function setUp(): void
@@ -40,106 +44,28 @@ class ScopeSecurityAuditTest extends TestCase
 
     private function createTestData(): void
     {
-        $this->tenant = Tenant::create([
-            'name' => 'Scope Security Tenant',
-            'code' => 'SCOPE',
-            'slug' => 'scope-security-tenant',
-            'status' => 'active',
-        ]);
+        $this->tenant = Tenant::create(['name' => 'Scope Security Tenant', 'code' => 'SCOPE', 'slug' => 'scope-security-tenant', 'status' => 'active']);
+        $this->company = Company::create(['tenant_id' => $this->tenant->id, 'code' => 'SCOPE-CO', 'name' => 'Scope Security Company', 'status' => 'active']);
+        $this->branch = Branch::create(['company_id' => $this->company->id, 'code' => 'SCOPE-BR', 'name' => 'Scope Security Branch', 'status' => 'active']);
 
-        $this->company = Company::create([
-            'tenant_id' => $this->tenant->id,
-            'code' => 'SCOPE-CO',
-            'name' => 'Scope Security Company',
-            'status' => 'active',
-        ]);
+        $this->locationA = Location::create(['branch_id' => $this->branch->id, 'code' => 'LOC-A', 'name' => 'Location A', 'type' => 'warehouse', 'status' => 'active']);
+        $this->locationB = Location::create(['branch_id' => $this->branch->id, 'code' => 'LOC-B', 'name' => 'Location B', 'type' => 'warehouse', 'status' => 'active']);
+        $this->office = Location::create(['branch_id' => $this->branch->id, 'code' => 'OFF-1', 'name' => 'Head Office', 'type' => 'office', 'status' => 'active']);
 
-        $this->branch = Branch::create([
-            'company_id' => $this->company->id,
-            'code' => 'SCOPE-BR',
-            'name' => 'Scope Security Branch',
-            'status' => 'active',
-        ]);
+        $this->warehouseA = Warehouse::create(['branch_id' => $this->branch->id, 'location_id' => $this->locationA->id, 'code' => 'WH-A', 'name' => 'Warehouse A', 'type' => 'main', 'is_default' => true, 'status' => 'active']);
+        $this->warehouseB = Warehouse::create(['branch_id' => $this->branch->id, 'location_id' => $this->locationB->id, 'code' => 'WH-B', 'name' => 'Warehouse B', 'type' => 'main', 'is_default' => false, 'status' => 'active']);
 
-        $this->locationA = Location::create([
-            'branch_id' => $this->branch->id,
-            'code' => 'LOC-A',
-            'name' => 'Location A',
-            'type' => 'warehouse',
-            'status' => 'active',
-        ]);
+        $this->supplier = Supplier::create(['tenant_id' => $this->tenant->id, 'company_id' => $this->company->id, 'code' => 'SUP-SCOPE', 'name' => 'Scope Supplier', 'status' => 'active']);
+        $this->category = Category::create(['name' => 'Scope Category']);
+        $this->product = Product::create(['tenant_id' => $this->tenant->id, 'category_id' => $this->category->id, 'name' => 'Scope Product', 'price' => 100000, 'is_active' => true]);
 
-        $this->locationB = Location::create([
-            'branch_id' => $this->branch->id,
-            'code' => 'LOC-B',
-            'name' => 'Location B',
-            'type' => 'warehouse',
-            'status' => 'active',
-        ]);
+        $this->user = User::create(['name' => 'Location A Operator', 'email' => 'scope-a@example.com', 'password' => bcrypt('password')]);
+        $role = Role::create(['tenant_id' => $this->tenant->id, 'name' => 'Scope Operator', 'code' => 'scope-operator', 'is_system' => false]);
 
-        $this->office = Location::create([
-            'branch_id' => $this->branch->id,
-            'code' => 'OFF-1',
-            'name' => 'Head Office',
-            'type' => 'office',
-            'status' => 'active',
-        ]);
-
-        $this->warehouseA = Warehouse::create([
-            'branch_id' => $this->branch->id,
-            'location_id' => $this->locationA->id,
-            'code' => 'WH-A',
-            'name' => 'Warehouse A',
-            'type' => 'main',
-            'is_default' => true,
-            'status' => 'active',
-        ]);
-
-        $this->warehouseB = Warehouse::create([
-            'branch_id' => $this->branch->id,
-            'location_id' => $this->locationB->id,
-            'code' => 'WH-B',
-            'name' => 'Warehouse B',
-            'type' => 'main',
-            'is_default' => false,
-            'status' => 'active',
-        ]);
-
-        $this->supplier = Supplier::create([
-            'tenant_id' => $this->tenant->id,
-            'company_id' => $this->company->id,
-            'code' => 'SUP-SCOPE',
-            'name' => 'Scope Supplier',
-            'status' => 'active',
-        ]);
-
-        $this->user = User::create([
-            'name' => 'Location A Operator',
-            'email' => 'scope-a@example.com',
-            'password' => bcrypt('password'),
-        ]);
-
-        $role = Role::create([
-            'tenant_id' => $this->tenant->id,
-            'name' => 'Scope Operator',
-            'code' => 'scope-operator',
-            'is_system' => false,
-        ]);
-
-        $permissions = collect([
-            'purchasing.order.view',
-            'purchasing.order.create',
-        ])->map(function (string $permissionCode): Permission {
+        $permissions = collect(['purchasing.order.view', 'purchasing.order.create'])->map(function (string $permissionCode): Permission {
             [$module, $resource, $action] = explode('.', $permissionCode);
-
-            return Permission::firstOrCreate([
-                'module' => $module,
-                'resource' => $resource,
-                'action' => $action,
-                'name' => $permissionCode,
-            ]);
+            return Permission::firstOrCreate(['module' => $module, 'resource' => $resource, 'action' => $action, 'name' => $permissionCode]);
         });
-
         $role->permissions()->attach($permissions);
 
         $this->user->memberships()->create([
@@ -177,7 +103,6 @@ class ScopeSecurityAuditTest extends TestCase
         $membership = $this->user->memberships()->firstOrFail()->load('location', 'branch.company');
         $context = new TenantContext();
         $context->setMembership($membership);
-
         $scope = new OrganizationScope($context);
 
         $this->assertSame([$this->warehouseA->id], $scope->warehouseIds());
@@ -189,9 +114,7 @@ class ScopeSecurityAuditTest extends TestCase
     {
         $membership = $this->user->memberships()->firstOrFail();
         $membership->update(['location_id' => $this->office->id]);
-        $membership->refresh();
-        $membership->load('location');
-
+        $membership->refresh()->load('location');
         $context = new TenantContext();
         $context->setMembership($membership);
         $scope = new OrganizationScope($context);
@@ -219,13 +142,9 @@ class ScopeSecurityAuditTest extends TestCase
         $orderA = $this->makePurchaseOrder($this->warehouseA, 'PO-SCOPE-A');
         $orderB = $this->makePurchaseOrder($this->warehouseB, 'PO-SCOPE-B');
 
-        $response = $this->actingAs($this->user)
-            ->getJson('/api/purchasing/orders');
-
+        $response = $this->actingAs($this->user)->getJson('/api/purchasing/orders');
         $response->assertOk();
-
-        $rows = data_get($response->json(), 'data.data', []);
-        $ids = collect($rows)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $ids = collect(data_get($response->json(), 'data.data', []))->pluck('id')->map(fn ($id) => (int) $id)->all();
 
         $this->assertContains($orderA->id, $ids);
         $this->assertNotContains($orderB->id, $ids);
@@ -233,12 +152,11 @@ class ScopeSecurityAuditTest extends TestCase
 
     public function test_purchasing_create_rejects_cross_location_warehouse(): void
     {
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/purchasing/orders', [
-                'supplier_id' => $this->supplier->id,
-                'warehouse_id' => $this->warehouseB->id,
-                'items' => [],
-            ]);
+        $response = $this->actingAs($this->user)->postJson('/api/purchasing/orders', [
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $this->warehouseB->id,
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1, 'unit_cost' => 100000]],
+        ]);
 
         $response->assertForbidden()
             ->assertJsonPath('message', 'Warehouse berada di luar organization/location scope aktif.');
@@ -246,36 +164,15 @@ class ScopeSecurityAuditTest extends TestCase
 
     public function test_cross_branch_warehouse_is_rejected_even_without_location_match(): void
     {
-        $otherBranch = Branch::create([
-            'company_id' => $this->company->id,
-            'code' => 'SCOPE-B2',
-            'name' => 'Other Branch',
-            'status' => 'active',
-        ]);
+        $otherBranch = Branch::create(['company_id' => $this->company->id, 'code' => 'SCOPE-B2', 'name' => 'Other Branch', 'status' => 'active']);
+        $otherLocation = Location::create(['branch_id' => $otherBranch->id, 'code' => 'LOC-BR2', 'name' => 'Other Branch Location', 'type' => 'warehouse', 'status' => 'active']);
+        $otherWarehouse = Warehouse::create(['branch_id' => $otherBranch->id, 'location_id' => $otherLocation->id, 'code' => 'WH-BR2', 'name' => 'Other Branch Warehouse', 'type' => 'main', 'status' => 'active']);
 
-        $otherLocation = Location::create([
-            'branch_id' => $otherBranch->id,
-            'code' => 'LOC-BR2',
-            'name' => 'Other Branch Location',
-            'type' => 'warehouse',
-            'status' => 'active',
+        $response = $this->actingAs($this->user)->postJson('/api/purchasing/orders', [
+            'supplier_id' => $this->supplier->id,
+            'warehouse_id' => $otherWarehouse->id,
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1, 'unit_cost' => 100000]],
         ]);
-
-        $otherWarehouse = Warehouse::create([
-            'branch_id' => $otherBranch->id,
-            'location_id' => $otherLocation->id,
-            'code' => 'WH-BR2',
-            'name' => 'Other Branch Warehouse',
-            'type' => 'main',
-            'status' => 'active',
-        ]);
-
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/purchasing/orders', [
-                'supplier_id' => $this->supplier->id,
-                'warehouse_id' => $otherWarehouse->id,
-                'items' => [],
-            ]);
 
         $response->assertForbidden();
     }
