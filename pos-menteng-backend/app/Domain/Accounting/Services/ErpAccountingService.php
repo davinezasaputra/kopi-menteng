@@ -5,14 +5,17 @@ namespace App\Domain\Accounting\Services;
 use App\Domain\Accounting\Models\ErpAccount;
 use App\Domain\Accounting\Models\ErpJournalBatch;
 use App\Domain\Accounting\Models\ErpJournalLine;
+use App\Domain\Core\Services\DocumentNumberService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ErpAccountingService
 {
-    public function __construct(private readonly TenantContext $context)
-    {
+    public function __construct(
+        private readonly TenantContext $context,
+        private readonly DocumentNumberService $numbers,
+    ) {
     }
 
     public function createAccount(array $data): ErpAccount
@@ -29,6 +32,17 @@ class ErpAccountingService
 
         if (! in_array($data['normal_balance'], ['debit','credit'], true)) {
             throw ValidationException::withMessages(['normal_balance' => 'Invalid normal balance.']);
+        }
+
+        if (!empty($data['parent_id'])) {
+            $parent = ErpAccount::query()
+                ->where('tenant_id', $membership->tenant_id)
+                ->where('company_id', $membership->company_id)
+                ->findOrFail($data['parent_id']);
+
+            if (! $parent->is_active) {
+                throw ValidationException::withMessages(['parent_id' => 'Parent account is inactive.']);
+            }
         }
 
         return ErpAccount::create([
@@ -94,7 +108,7 @@ class ErpAccountingService
                 'tenant_id' => $membership->tenant_id,
                 'company_id' => $membership->company_id,
                 'branch_id' => $data['branch_id'] ?? $membership->branch_id,
-                'journal_number' => $data['journal_number'] ?? ('JRN-' . now()->format('YmdHisv')),
+                'journal_number' => $data['journal_number'] ?? $this->numbers->next('erp_journal', 'JRN'),
                 'journal_date' => $data['journal_date'] ?? now()->toDateString(),
                 'status' => 'posted',
                 'source_type' => $data['source_type'] ?? 'manual',
