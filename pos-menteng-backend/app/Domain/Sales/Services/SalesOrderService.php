@@ -5,6 +5,8 @@ namespace App\Domain\Sales\Services;
 use App\Domain\Audit\Services\AuditService;
 use App\Domain\Core\Services\DocumentNumberService;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Inventory\Models\InventoryReservation;
+use App\Domain\Inventory\Services\InventoryReservationService;
 use App\Domain\Sales\Models\{SalesOrder,SalesOrderItem};
 use App\Models\Customer;
 use App\Models\Product;
@@ -18,6 +20,7 @@ class SalesOrderService
         private readonly TenantContext $context,
         private readonly DocumentNumberService $numbers,
         private readonly AuditService $audit,
+        private readonly InventoryReservationService $reservations,
     ) {}
 
     public function create(
@@ -160,11 +163,26 @@ class SalesOrderService
             $this->assertContext($order);
             $row=SalesOrder::query()->lockForUpdate()->findOrFail($order->id);
 
-            if(!in_array($row->status,['draft','submitted'],true)){
-                throw ValidationException::withMessages(['status'=>'Only draft or submitted sales orders can be cancelled.']);
+
+            if(!in_array($row->status,['draft','submitted','approved'],true)){
+                throw ValidationException::withMessages(['status'=>'Only draft, submitted or approved sales orders can be cancelled.']);
             }
 
-            $old=$row->only(['status']);
+            $old=$row->only(['status','inventory_reservation_id']);
+
+            if($row->status==='approved' && $row->inventory_reservation_id){
+                $reservation=InventoryReservation::query()
+                    ->where('tenant_id',$row->tenant_id)
+                    ->where('company_id',$row->company_id)
+                    ->where('branch_id',$row->branch_id)
+                    ->findOrFail($row->inventory_reservation_id);
+
+                if($reservation->status==='active'){
+                    $this->reservations->release($reservation);
+                }
+
+                $row->inventory_reservation_id=null;
+            }
             $row->status='cancelled';
             $row->cancelled_by=auth()->id();
             $row->cancelled_at=now();
