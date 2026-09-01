@@ -2,6 +2,7 @@
 
 namespace App\Support\Auth;
 
+use App\Domain\Organization\Models\TenantLicense;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 
@@ -11,32 +12,21 @@ class PermissionService
 
     public function hasPermission(User $user, string $permission): bool
     {
-        // Developer is the platform/application superuser (God Mode).
-        // Tenant membership is still required by the tenant middleware when
-        // accessing tenant-scoped endpoints, but no tenant RBAC permission
-        // should block the developer account.
-        if ($user->role === 'developer') {
-            return true;
-        }
+        if ($user->role === 'developer') return true;
 
         $membership = $this->context->membership();
-        if (! $membership || (int) $membership->user_id !== (int) $user->getAuthIdentifier()) {
-            return false;
-        }
-
-        if ($membership->status !== 'active') {
-            return false;
-        }
+        if (! $membership || (int) $membership->user_id !== (int) $user->getAuthIdentifier()) return false;
+        if ($membership->status !== 'active') return false;
 
         $role = $membership->role()->with('permissions')->first();
-        if (! $role) {
-            return false;
+        if (! $role) return false;
+        if ($role->code === 'tenant-admin') {
+            $license = TenantLicense::query()->where('tenant_id', $membership->tenant_id)->first();
+            return $license ? $license->allowsPermission($permission) : true;
         }
 
-        // tenant-admin is the tenant-scoped super-admin role and is
-        // intentionally allowed to access all tenant permissions.
-        if ($role->code === 'tenant-admin') {
-            return true;
+        if ($license = TenantLicense::query()->where('tenant_id', $membership->tenant_id)->first()) {
+            if (! $license->allowsPermission($permission)) return false;
         }
 
         return $role->permissions->contains('name', $permission);
