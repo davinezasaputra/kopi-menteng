@@ -10,7 +10,7 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        User::firstOrCreate(
+        User::updateOrCreate(
             ['email' => 'davin-eza@mahasiswa.ubb.ac.id'],
             [
                 'name' => 'Davin (Developer)',
@@ -20,7 +20,7 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        User::firstOrCreate(
+        User::updateOrCreate(
             ['email' => 'kasir1@menteng.com'],
             [
                 'name' => 'Kasir Satu',
@@ -31,8 +31,7 @@ class DatabaseSeeder extends Seeder
         );
 
         $this->call([
-            ErpFoundationSeeder::class,
-            ProductSeeder::class,
+            ErpMasterSeeder::class,
         ]);
     }
 }
