@@ -3,17 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Audit\Models\AuditLog;
+use App\Domain\Core\Models\DocumentSequence;
 use App\Domain\Identity\Models\Membership;
 use App\Domain\Identity\Models\Permission;
 use App\Domain\Identity\Models\Role;
+use App\Domain\Organization\Models\CostCenter;
+use App\Domain\Organization\Models\Department;
 use App\Support\Responses\ApiResponse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
 class FoundationController extends Controller
 {
-    public function roles(Request $request)
-    {
+    public function roles(Request $request){
         $context=app(TenantContext::class);
         return ApiResponse::success(Role::query()->where(fn($q)=>$q->whereNull('tenant_id')->orWhere('tenant_id',$context->tenantId()))->with('permissions')->orderBy('name')->get());
     }
@@ -24,7 +26,7 @@ class FoundationController extends Controller
         return ApiResponse::success($query->paginate(min($request->integer('per_page',50),100)));
     }
     public function myMemberships(){
-        $context=app(TenantContext::class); $userId=request()->user()->getAuthIdentifier();
+        $userId=request()->user()->getAuthIdentifier();
         return ApiResponse::success(Membership::query()->where('user_id',$userId)->where('status','active')->with(['tenant','company','branch','role'])->orderByDesc('is_primary')->get());
     }
     public function context(){
@@ -35,5 +37,17 @@ class FoundationController extends Controller
         $context=app(TenantContext::class); $query=AuditLog::query()->where('tenant_id',$context->tenantId());
         if($request->filled('module'))$query->where('module',$request->string('module')); if($request->filled('event'))$query->where('event',$request->string('event'));
         return ApiResponse::success($query->orderByDesc('created_at')->paginate(min($request->integer('per_page',50),100)));
+    }
+    public function documentSequences(Request $request){
+        $context=app(TenantContext::class);
+        return ApiResponse::success(DocumentSequence::query()->where('tenant_id',$context->tenantId())->orderBy('document_type')->orderBy('period','desc')->paginate(min($request->integer('per_page',50),100)));
+    }
+    public function departments(){
+        $context=app(TenantContext::class);
+        return ApiResponse::success(Department::query()->where('company_id',$context->companyId())->orderBy('code')->get());
+    }
+    public function costCenters(){
+        $context=app(TenantContext::class);
+        return ApiResponse::success(CostCenter::query()->where('company_id',$context->companyId())->orderBy('code')->get());
     }
 }
