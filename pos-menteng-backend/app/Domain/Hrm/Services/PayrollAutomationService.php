@@ -41,7 +41,6 @@ class PayrollAutomationService
     {
         $config = $this->getConfig();
         $old = $config->toArray();
-
         $config->fill([
             'enable_auto_fill' => (bool) ($attributes['enable_auto_fill'] ?? $config->enable_auto_fill),
             'enable_whatsapp_notification' => (bool) ($attributes['enable_whatsapp_notification'] ?? $config->enable_whatsapp_notification),
@@ -52,16 +51,13 @@ class PayrollAutomationService
             'message_template' => $attributes['message_template'] ?? $config->message_template,
         ]);
         $config->save();
-
         $this->audit->record('updated', 'hrm.payroll_automation_config', $config, $old, $config->fresh()->toArray());
-
         return $config->fresh();
     }
 
     public function autoFillPayroll(Payroll $payroll): array
     {
         $this->assertPayrollAccessible($payroll);
-
         $payroll->loadMissing('employee');
         $employee = $payroll->employee;
         if (! $employee) {
@@ -69,9 +65,8 @@ class PayrollAutomationService
         }
 
         $period = $this->periodStart($payroll->period);
-        $periodEnd = $period->copy()->endOfMonth()->toDateString();
         $attendance = $employee->attendances()
-            ->whereBetween('tanggal', [$period->toDateString(), $periodEnd])
+            ->whereBetween('tanggal', [$period->toDateString(), $period->copy()->endOfMonth()->toDateString()])
             ->get(['tanggal', 'status', 'late_minute']);
 
         $baseSalary = (float) ($employee->base_sallary ?? $payroll->base_salary ?? 0);
@@ -105,7 +100,6 @@ class PayrollAutomationService
         ];
 
         $this->audit->record('auto_filled', 'hrm.payroll', $payroll, $old, $payroll->fresh()->toArray());
-
         return $summary;
     }
 
@@ -115,7 +109,7 @@ class PayrollAutomationService
             return 0.0;
         }
 
-        $attendance = $attendance ?? $employee->attendances()
+        $attendance ??= $employee->attendances()
             ->whereBetween('tanggal', [$period->toDateString(), $period->copy()->endOfMonth()->toDateString()])
             ->get(['status', 'late_minute']);
 
@@ -124,16 +118,14 @@ class PayrollAutomationService
         $penalty = 0.0;
 
         if ($lateMinutes > 0) {
-            $rule = \DB::table('attendance_penalties')
+            $rules = \DB::table('attendance_penalties')
                 ->where('tenant_id', $this->context->tenantId())
                 ->where('penalty_type', 'late')
                 ->where('is_active', true)
-                ->orderByDesc('penalty_amount')
-                ->get()
-                ->first(function ($row) use ($lateMinutes) {
-                    return $this->thresholdMinutes((string) $row->duration_threshold) <= $lateMinutes;
-                });
-
+                ->get();
+            $rule = $rules->filter(fn ($row) => $this->thresholdMinutes((string) $row->duration_threshold) <= $lateMinutes)
+                ->sortByDesc(fn ($row) => $this->thresholdMinutes((string) $row->duration_threshold))
+                ->first();
             if ($rule) {
                 $penalty += $this->penaltyAmount($rule, $baseSalary);
             }
@@ -144,10 +136,7 @@ class PayrollAutomationService
                 ->where('tenant_id', $this->context->tenantId())
                 ->where('penalty_type', 'absence')
                 ->where('is_active', true)
-                ->orderByDesc('penalty_amount')
-                ->get()
                 ->first();
-
             if ($rule) {
                 $penalty += $absenceDays * $this->penaltyAmount($rule, $baseSalary);
             }
@@ -160,14 +149,13 @@ class PayrollAutomationService
     {
         $this->assertPayrollAccessible($payroll);
         $payroll->loadMissing('employee');
-
-        $attendanceSummary = $this->attendanceSummary($payroll);
         $path = 'payroll/' . $this->context->tenantId() . '/' . $payroll->id . '.pdf';
+        $summary = $this->attendanceSummary($payroll);
 
         if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('payroll.slip', [
                 'payroll' => $payroll,
-                'attendanceSummary' => $attendanceSummary,
+                'attendanceSummary' => $summary,
             ]);
             Storage::disk('public')->put($path, $pdf->output());
         } else {
@@ -180,9 +168,9 @@ class PayrollAutomationService
                 'Tunjangan: Rp ' . number_format((float) $payroll->allowance, 0, ',', '.'),
                 'Potongan: Rp ' . number_format((float) $payroll->deduction, 0, ',', '.'),
                 'Total Gaji: Rp ' . number_format((float) $payroll->total_salary, 0, ',', '.'),
-                'Kehadiran: ' . $attendanceSummary['attendance_days'] . ' hari',
-                'Terlambat: ' . $attendanceSummary['late_minutes'] . ' menit',
-                'Ketidakhadiran: ' . $attendanceSummary['absence_days'] . ' hari',
+                'Kehadiran: ' . $summary['attendance_days'] . ' hari',
+                'Terlambat: ' . $summary['late_minutes'] . ' menit',
+                'Ketidakhadiran: ' . $summary['absence_days'] . ' hari',
             ]));
         }
 
@@ -192,14 +180,11 @@ class PayrollAutomationService
     public function handlePaidPayroll(Payroll $payroll): array
     {
         $this->assertPayrollAccessible($payroll);
-
         $config = $this->getConfig();
         if (! $config->enable_whatsapp_notification) {
             return ['status' => 'disabled', 'notifications' => 0];
         }
-
-        $pdfPath = $this->generatePayrollPDF($payroll);
-        return $this->queuePayrollNotifications($payroll, $pdfPath, $config);
+        return $this->queuePayrollNotifications($payroll, $this->generatePayrollPDF($payroll), $config);
     }
 
     public function queuePayrollNotifications(Payroll $payroll, string $pdfPath, ?PayrollAutomationConfig $config = null): array
@@ -207,9 +192,7 @@ class PayrollAutomationService
         $this->assertPayrollAccessible($payroll);
         $config ??= $this->getConfig();
         $payroll->loadMissing('employee');
-
-        $template = (string) ($config->message_template ?: 'Slip gaji periode {period} untuk {employee_name} terlampir.');
-        $message = strtr($template, [
+        $message = strtr((string) ($config->message_template ?: 'Slip gaji periode {period} untuk {employee_name} terlampir.'), [
             '{period}' => (string) $payroll->period,
             '{employee_name}' => (string) ($payroll->employee?->name ?? 'Karyawan'),
         ]);
@@ -231,19 +214,16 @@ class PayrollAutomationService
                     'message_content' => $message,
                     'pdf_file_path' => $pdfPath,
                     'provider' => strtolower((string) env('WHATSAPP_PROVIDER', 'twilio')),
-                    'provider_status' => null,
                     'status' => 'pending',
+                    'provider_status' => null,
                     'error_message' => null,
                 ],
             );
-
             $created[] = $notification;
             $job = new SendPayrollNotificationJob($notification->id);
-
             if ($config->notification_timing === 'next_day') {
                 $job->delay(Carbon::now('Asia/Jakarta')->addDay()->setTime(9, 0));
             }
-
             dispatch($job);
         }
 
@@ -265,7 +245,6 @@ class PayrollAutomationService
         $notification->loadMissing('payroll.employee');
         $payroll = $notification->payroll;
         $this->assertPayrollAccessible($payroll);
-
         $notification->update([
             'status' => 'processing',
             'attempts' => ((int) $notification->attempts) + 1,
@@ -287,20 +266,11 @@ class PayrollAutomationService
                 'sent_at' => now(),
                 'error_message' => null,
             ]);
-
             $this->audit->record('notification_sent', 'hrm.payroll_notification', $notification, null, $notification->fresh()->toArray());
-
             return $notification->fresh();
         } catch (\Throwable $e) {
-            $notification->update([
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
-            ]);
-
-            $this->audit->record('notification_failed', 'hrm.payroll_notification', $notification, null, [
-                'error' => $e->getMessage(),
-            ]);
-
+            $notification->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            $this->audit->record('notification_failed', 'hrm.payroll_notification', $notification, null, ['error' => $e->getMessage()]);
             throw $e;
         }
     }
@@ -308,20 +278,18 @@ class PayrollAutomationService
     public function syncNotificationStatus(PayrollNotification $notification): PayrollNotification
     {
         $this->assertPayrollAccessible($notification->payroll()->firstOrFail());
-
         if (strtolower((string) $notification->provider) !== 'twilio' || ! $notification->provider_message_id) {
             return $notification->fresh();
         }
-
         $sid = (string) env('TWILIO_ACCOUNT_SID');
         $token = (string) env('TWILIO_AUTH_TOKEN');
         if ($sid === '' || $token === '') {
             return $notification->fresh();
         }
 
-        $response = Http::withBasicAuth($sid, $token)
-            ->get('https://api.twilio.com/2010-04-01/Accounts/' . $sid . '/Messages/' . rawurlencode($notification->provider_message_id) . '.json');
-
+        $response = Http::withBasicAuth($sid, $token)->get(
+            'https://api.twilio.com/2010-04-01/Accounts/' . $sid . '/Messages/' . rawurlencode($notification->provider_message_id) . '.json'
+        );
         if ($response->successful()) {
             $providerStatus = (string) ($response->json('status') ?? '');
             $notification->update([
@@ -330,7 +298,6 @@ class PayrollAutomationService
                 'sent_at' => in_array($providerStatus, ['sent', 'delivered', 'read'], true) ? ($notification->sent_at ?? now()) : $notification->sent_at,
             ]);
         }
-
         return $notification->fresh();
     }
 
@@ -339,7 +306,6 @@ class PayrollAutomationService
         $accountSid = (string) env('TWILIO_ACCOUNT_SID');
         $authToken = (string) env('TWILIO_AUTH_TOKEN');
         $from = (string) env('TWILIO_WHATSAPP_FROM');
-
         if ($accountSid === '' || $authToken === '' || $from === '') {
             throw new RuntimeException('Konfigurasi Twilio belum lengkap. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, dan TWILIO_WHATSAPP_FROM.');
         }
@@ -348,23 +314,23 @@ class PayrollAutomationService
         if ($phone === '') {
             throw new RuntimeException('Nomor WhatsApp penerima belum diisi.');
         }
-
         if (! $notification->pdf_file_path || ! Storage::disk('public')->exists($notification->pdf_file_path)) {
             throw new RuntimeException('File PDF payroll tidak ditemukan.');
         }
 
         $mediaUrl = $this->publicMediaUrl($notification->pdf_file_path);
-        if (filter_var($mediaUrl, FILTER_VALIDATE_URL) === false) {
+        if (! filter_var($mediaUrl, FILTER_VALIDATE_URL)) {
             throw new RuntimeException('URL media PDF tidak valid. Set APP_URL atau WHATSAPP_MEDIA_BASE_URL yang dapat diakses provider.');
         }
 
-        $response = Http::withBasicAuth($accountSid, $authToken)
-            ->asForm()
-            ->post('https://api.twilio.com/2010-04-01/Accounts/' . $accountSid . '/Messages.json', [
+        $response = Http::withBasicAuth($accountSid, $authToken)->asForm()->post(
+            'https://api.twilio.com/2010-04-01/Accounts/' . $accountSid . '/Messages.json',
+            [
                 'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:' . $from,
                 'To' => 'whatsapp:' . $phone,
                 'MediaUrl' => $mediaUrl,
-            ]);
+            ],
+        );
 
         if (! $response->successful()) {
             throw new RuntimeException('Twilio gagal mengirim payroll PDF: ' . ($response->json('message') ?? $response->body()));
@@ -380,28 +346,27 @@ class PayrollAutomationService
     {
         $payroll->loadMissing('employee');
         $period = $this->periodStart($payroll->period);
-        $attendance = $payroll->employee?->attendances()
+        $rows = $payroll->employee?->attendances()
             ->whereBetween('tanggal', [$period->toDateString(), $period->copy()->endOfMonth()->toDateString()])
             ->get(['status', 'late_minute']) ?? collect();
-
         return [
-            'attendance_days' => $attendance->count(),
-            'late_days' => $attendance->filter(fn ($row) => in_array((string) ($row->status ?? ''), ['terlambat', 'late'], true) || (int) ($row->late_minute ?? 0) > 0)->count(),
-            'late_minutes' => (int) $attendance->sum('late_minute'),
-            'absence_days' => $attendance->filter(fn ($row) => in_array((string) ($row->status ?? ''), ['absence', 'absen', 'alpha', 'tidak_hadir'], true))->count(),
-            'sick_days' => $attendance->filter(fn ($row) => in_array((string) ($row->status ?? ''), ['sakit', 'sick'], true))->count(),
+            'attendance_days' => $rows->count(),
+            'late_days' => $rows->filter(fn ($row) => in_array((string) ($row->status ?? ''), ['terlambat', 'late'], true) || (int) ($row->late_minute ?? 0) > 0)->count(),
+            'late_minutes' => (int) $rows->sum('late_minute'),
+            'absence_days' => $rows->filter(fn ($row) => in_array((string) ($row->status ?? ''), ['absence', 'absen', 'alpha', 'tidak_hadir'], true))->count(),
+            'sick_days' => $rows->filter(fn ($row) => in_array((string) ($row->status ?? ''), ['sakit', 'sick'], true))->count(),
         ];
     }
 
     private function assertPayrollAccessible(Payroll $payroll): void
     {
-        $query = Payroll::query()
-            ->where('id', $payroll->id)
+        $exists = Payroll::query()
+            ->whereKey($payroll->getKey())
             ->where('tenant_id', $this->context->tenantId())
             ->where('company_id', $this->context->companyId())
-            ->where('branch_id', $this->context->branchId());
-
-        if (! $query->exists()) {
+            ->where('branch_id', $this->context->branchId())
+            ->exists();
+        if (! $exists) {
             abort(404, 'Payroll tidak ditemukan pada context aktif.');
         }
     }
@@ -417,26 +382,20 @@ class PayrollAutomationService
 
     private function penaltyAmount(object $row, float $baseSalary): float
     {
-        if ((string) $row->penalty_type_payment === 'percentage_of_salary') {
-            return max(0, $baseSalary * ((float) $row->penalty_amount / 100));
-        }
-
-        return max(0, (float) $row->penalty_amount);
+        return (string) $row->penalty_type_payment === 'percentage_of_salary'
+            ? max(0, $baseSalary * ((float) $row->penalty_amount / 100))
+            : max(0, (float) $row->penalty_amount);
     }
 
     private function thresholdMinutes(string $threshold): int
     {
-        if (preg_match('/(\d+)\s*hour/i', $threshold, $matches)) {
-            return (int) $matches[1] * 60;
+        if (preg_match('/(\d+)\s*hour/i', $threshold, $m)) {
+            return (int) $m[1] * 60;
         }
-        if (preg_match('/(\d+)\s*minute/i', $threshold, $matches)) {
-            return (int) $matches[1];
+        if (preg_match('/(\d+)\s*minute/i', $threshold, $m)) {
+            return (int) $m[1];
         }
-        if (preg_match('/full[_ -]?day/i', $threshold)) {
-            return 8 * 60;
-        }
-
-        return 0;
+        return preg_match('/full[_ -]?day/i', $threshold) ? 480 : 0;
     }
 
     private function normalizePhone(string $phone): string
@@ -451,19 +410,13 @@ class PayrollAutomationService
         if (str_starts_with($phone, '0')) {
             return '+62' . substr($phone, 1);
         }
-        if (! str_starts_with($phone, '+')) {
-            return '+' . $phone;
-        }
-
-        return $phone;
+        return str_starts_with($phone, '+') ? $phone : '+' . $phone;
     }
 
     private function publicMediaUrl(string $path): string
     {
         $base = rtrim((string) env('WHATSAPP_MEDIA_BASE_URL', config('app.url')), '/');
-        $relative = ltrim(Storage::disk('public')->url($path), '/');
-
-        return $base . '/' . $relative;
+        return $base . '/' . ltrim(Storage::disk('public')->url($path), '/');
     }
 
     private function localStatusFromProvider(string $status): string
@@ -478,14 +431,14 @@ class PayrollAutomationService
 
     private function minimalPdf(array $lines): string
     {
-        $safeLines = array_map(function ($line) {
+        $safe = array_map(function ($line) {
             $line = preg_replace('/[^\x20-\x7E]/', '?', (string) $line) ?? '';
             return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $line);
         }, $lines);
 
         $stream = "BT\n/F1 11 Tf\n50 780 Td\n14 TL\n";
-        foreach ($safeLines as $index => $line) {
-            if ($index > 0) {
+        foreach ($safe as $i => $line) {
+            if ($i > 0) {
                 $stream .= "T*\n";
             }
             $stream .= '(' . $line . ") Tj\n";
@@ -508,7 +461,7 @@ class PayrollAutomationService
         }
 
         $xrefOffset = strlen($pdf);
-        $pdf .= "xref\n0 " . count($objects) + 1 . "\n";
+        $pdf .= "xref\n0 " . (count($objects) + 1) . "\n";
         $pdf .= "0000000000 65535 f \n";
         for ($i = 1; $i < count($offsets); $i++) {
             $pdf .= str_pad((string) $offsets[$i], 10, '0', STR_PAD_LEFT) . " 00000 n \n";
