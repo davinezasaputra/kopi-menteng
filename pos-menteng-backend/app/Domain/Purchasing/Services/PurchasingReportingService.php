@@ -128,13 +128,20 @@ class PurchasingReportingService
         $fromDate = $from ? Carbon::parse($from)->startOfDay() : null;
         $toDate = $to ? Carbon::parse($to)->endOfDay() : null;
 
-        $suppliers = $this->scope(Supplier::query())
+        $suppliers = Supplier::query()
+            ->where('tenant_id', $this->context->tenantId())
+            ->where('company_id', $this->context->companyId())
             ->with([
                 'purchaseOrders' => fn ($q) => $q
-                    ->with(['items', 'goodsReceipts:id,purchase_order_id,receipt_date'])
+                    ->where('branch_id', $this->context->branchId())
+                    ->with(['items', 'goodsReceipts:id,purchase_order_id,receipt_date,branch_id'])
                     ->when($fromDate, fn ($q) => $q->where('created_at', '>=', $fromDate))
                     ->when($toDate, fn ($q) => $q->where('created_at', '<=', $toDate)),
-                'supplierReturns.items',
+                'supplierReturns' => fn ($q) => $q
+                    ->where('tenant_id', $this->context->tenantId())
+                    ->where('company_id', $this->context->companyId())
+                    ->where('branch_id', $this->context->branchId())
+                    ->with('items'),
             ])
             ->get();
 
