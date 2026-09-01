@@ -8,10 +8,10 @@ return new class extends Migration
     public function up(): void
     {
         $map = [
-            'accounting.erp.account.view' => ['erp_account','view'],
-            'accounting.erp.account.create' => ['erp_account','create'],
-            'accounting.erp.journal.view' => ['erp_journal','view'],
-            'accounting.erp.journal.create' => ['erp_journal','create'],
+            'accounting.erp_account.view' => ['erp_account','view'],
+            'accounting.erp_account.create' => ['erp_account','create'],
+            'accounting.erp_journal.view' => ['erp_journal','view'],
+            'accounting.erp_journal.create' => ['erp_journal','create'],
         ];
 
         foreach ($map as $name => [$resource, $action]) {
@@ -60,10 +60,10 @@ return new class extends Migration
     {
         $ids = DB::table('permissions')
             ->whereIn('name', [
-                'accounting.erp.account.view',
-                'accounting.erp.account.create',
-                'accounting.erp.journal.view',
-                'accounting.erp.journal.create',
+                'accounting.erp_account.view',
+                'accounting.erp_account.create',
+                'accounting.erp_journal.view',
+                'accounting.erp_journal.create',
             ])->pluck('id');
 
         DB::table('role_permissions')->whereIn('permission_id', $ids)->delete();
