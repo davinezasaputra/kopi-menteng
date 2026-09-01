@@ -52,15 +52,13 @@ class PurchasingApprovalMatrixService
             ->where('document_type','purchase_order')
             ->where('is_active',true);
 
-        $overlap=$query->where(function($q) use($minAmount,$maxAmount){
-            $q->where(function($x) use($maxAmount){
-                $x->whereNull('max_amount');
-                if($maxAmount !== null) $x->orWhere('max_amount','>',$minAmount);
+        $overlap = $query
+            ->where('min_amount', '<', $maxAmount ?? PHP_FLOAT_MAX)
+            ->where(function ($q) use ($minAmount) {
+                $q->whereNull('max_amount')
+                  ->orWhere('max_amount', '>', $minAmount);
             })
-            ->where(function($x) use($minAmount){
-                $x->whereNull('max_amount')->orWhere('max_amount','>',$minAmount);
-            });
-        })->where('min_amount','<',$maxAmount ?? PHP_FLOAT_MAX)->exists();
+            ->exists();
 
         if($overlap){
             throw ValidationException::withMessages(['range'=>'Approval amount range overlaps an existing active rule.']);
