@@ -22,7 +22,6 @@ import Employees from './pages/Employees';
 import FoundationAdmin from './pages/admin/FoundationAdmin';
 import EnterpriseOperations from './pages/EnterpriseOperations';
 import GuidedOperations from './pages/GuidedOperations';
-import PurchaseOrders from './pages/PurchaseOrders';
 import PurchasingWorkspaceV2 from './pages/PurchasingWorkspaceV2';
 import OperationsCenter from './pages/OperationsCenter';
 
@@ -58,6 +57,19 @@ const ProtectedRoute = ({ children, requiredPermission, requiredAnyPermission }:
 
 const Forbidden = () => <main className="min-h-screen bg-stone-50 flex items-center justify-center px-6"><section className="max-w-md rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-sm"><div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">403</div><h1 className="text-xl font-bold text-stone-900">Akses ditolak</h1><p className="mt-2 text-sm text-stone-600">Akun ini tidak memiliki permission untuk membuka halaman tersebut.</p></section></main>;
 
+const AppError = ({ error }: { error: unknown }) => (
+  <main className="min-h-screen bg-stone-50 flex items-center justify-center px-6">
+    <section className="max-w-xl rounded-2xl border border-red-200 bg-white p-8 shadow-sm">
+      <div className="text-xs font-bold uppercase tracking-wider text-red-600">Application Error</div>
+      <h1 className="mt-2 text-xl font-bold text-stone-900">Aplikasi gagal menampilkan halaman.</h1>
+      <p className="mt-2 text-sm text-stone-600">Refresh halaman. Jika tetap terjadi, buka console browser untuk detail error.</p>
+      {import.meta.env.DEV && <pre className="mt-4 max-h-48 overflow-auto rounded-xl bg-stone-950 p-4 text-xs text-red-200">{String(error)}</pre>}
+    </section>
+  </main>
+);
+
+class AppErrorBoundary extends (class extends Error { constructor(message: string){super(message);} } as { new(message: string): Error }) {}
+
 function App() {
   return <BrowserRouter><Toaster position="top-center" reverseOrder={false} /><FoundationBootstrap><AxiosInterceptor><Routes>
     <Route path="/" element={<Login />} />
@@ -81,6 +93,7 @@ function App() {
     <Route path="/erp/operations/raw" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'sales.order.view', 'accounting.report.view']}><EnterpriseOperations /></ProtectedRoute>} />
     <Route path="/purchasing" element={<ProtectedRoute requiredAnyPermission={['purchasing.supplier.view','purchasing.requisition.view','purchasing.order.view','purchasing.receipt.view','purchasing.ap.view','purchasing.return.view','purchasing.credit_note.view','purchasing.budget.view','purchasing.approval_matrix.view','purchasing.reconciliation.view','purchasing.reporting.view']}><PurchasingWorkspaceV2 /></ProtectedRoute>} />
     <Route path="/purchasing/orders" element={<ProtectedRoute requiredPermission="purchasing.order.view"><PurchasingWorkspaceV2 /></ProtectedRoute>} />
+    <Route path="*" element={<Navigate to="/dashboard" replace />} />
   </Routes></AxiosInterceptor></FoundationBootstrap></BrowserRouter>;
 }
 
