@@ -24,6 +24,7 @@ import EnterpriseOperations from './pages/EnterpriseOperations';
 import GuidedOperations from './pages/GuidedOperations';
 import PurchasingWorkspaceV2 from './pages/PurchasingWorkspaceV2';
 import OperationsCenter from './pages/OperationsCenter';
+import ReceiptTemplateSettings from './pages/ReceiptTemplateSettings';
 
 const AxiosInterceptor = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
@@ -75,6 +76,7 @@ function App() {
     <Route path="/employees" element={<ProtectedRoute requiredPermission="hr.employee.view"><Employees /></ProtectedRoute>} />
     <Route path="/hrm" element={<ProtectedRoute requiredPermission="hr.employee.view"><Hrm /></ProtectedRoute>} />
     <Route path="/admin/foundation" element={<ProtectedRoute requiredPermission="rbac.role.view"><FoundationAdmin /></ProtectedRoute>} />
+    <Route path="/admin/pos/receipt-template" element={<ProtectedRoute requiredPermission="pos.receipt_template.view"><ReceiptTemplateSettings /></ProtectedRoute>} />
     <Route path="/erp/operations" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'purchasing.order.view', 'sales.order.view', 'accounting.report.view']}><OperationsCenter /></ProtectedRoute>} />
     <Route path="/erp/operations/guided" element={<ProtectedRoute requiredAnyPermission={['purchasing.supplier.create', 'purchasing.order.create', 'sales.order.create', 'accounting.report.view', 'accounting.erp_journal.create']}><GuidedOperations /></ProtectedRoute>} />
     <Route path="/erp/operations/raw" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'sales.order.view', 'accounting.report.view']}><EnterpriseOperations /></ProtectedRoute>} />
