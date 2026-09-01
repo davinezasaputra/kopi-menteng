@@ -76,6 +76,8 @@ class ErpMasterSeeder extends Seeder
             ['pos','sale','view'], ['pos','sale','create'],
             ['inventory','stock','view'], ['inventory','stock','adjust'],
             ['accounting','journal','view'], ['accounting','journal','create'], ['accounting','journal','post'],
+            ['accounting','erp','account','view'], ['accounting','erp','account','create'],
+            ['accounting','erp','journal','view'], ['accounting','erp','journal','create'],
             ['hr','employee','view'], ['hr','employee','manage'],
             ['purchasing','supplier','view'], ['purchasing','supplier','create'],
             ['purchasing','requisition','view'], ['purchasing','requisition','create'],
@@ -130,7 +132,7 @@ class ErpMasterSeeder extends Seeder
                 'organization.branch.view','hr.employee.view',
             ],
             'cashier' => ['pos.sale.view','pos.sale.create','sales.order.view','sales.order.create'],
-            'accountant' => ['accounting.journal.view','accounting.journal.create','accounting.journal.post','purchasing.ap.view','purchasing.reconciliation.view'],
+            'accountant' => ['accounting.journal.view','accounting.journal.create','accounting.journal.post','accounting.erp.account.view','accounting.erp.account.create','accounting.erp.journal.view','accounting.erp.journal.create','purchasing.ap.view','purchasing.reconciliation.view'],
             'warehouse-manager' => ['inventory.stock.view','inventory.stock.adjust','purchasing.supplier.view','purchasing.requisition.view','purchasing.requisition.create'],
             'hr-manager' => ['hr.employee.view','hr.employee.manage'],
         ];
