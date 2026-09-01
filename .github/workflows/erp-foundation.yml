@@ -38,3 +38,29 @@ jobs:
 
       - name: Run tests
         run: php artisan test --testsuite=Feature
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pos-menteng-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: pos-menteng-frontend/package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Typecheck and build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
