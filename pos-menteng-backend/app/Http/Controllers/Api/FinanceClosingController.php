@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Accounting\Models\FiscalPeriod;
+use App\Domain\Accounting\Models\ErpAccount;
 use App\Domain\Accounting\Services\FinanceClosingService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class FinanceClosingController extends Controller
 {
@@ -62,12 +64,27 @@ class FinanceClosingController extends Controller
     public function cashBook(Request $request): JsonResponse
     {
         $data=$request->validate([
-            'account_code'=>['required','string','max:50'],
+            'account_code'=>['nullable','string','max:50'],
             'from'=>['nullable','date'],
             'to'=>['nullable','date','after_or_equal:from'],
         ]);
 
-        return response()->json(['status'=>'success','data'=>$this->service->cashBook($data['account_code'],$data['from']??null,$data['to']??null)]);
+        $accountCode = $data['account_code'] ?? null;
+        if (!$accountCode) {
+            $accountCode = ErpAccount::query()
+                ->where('tenant_id', app(\App\Support\Tenancy\TenantContext::class)->tenantId())
+                ->where('company_id', app(\App\Support\Tenancy\TenantContext::class)->companyId())
+                ->orderBy('code')
+                ->value('code');
+        }
+
+        if (!$accountCode) {
+            throw ValidationException::withMessages([
+                'account_code' => 'No ERP account is available in the active organization context.',
+            ]);
+        }
+
+        return response()->json(['status'=>'success','data'=>$this->service->cashBook($accountCode,$data['from']??null,$data['to']??null)]);
     }
 
     public function reconcile(Request $request): JsonResponse
