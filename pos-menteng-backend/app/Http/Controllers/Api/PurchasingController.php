@@ -11,6 +11,8 @@ use App\Domain\Purchasing\Models\SupplierInvoice;
 use App\Domain\Purchasing\Models\SupplierPayment;
 use App\Domain\Purchasing\Models\SupplierReturn;
 use App\Domain\Purchasing\Models\SupplierCreditNote;
+use App\Domain\Purchasing\Models\PurchasingBudget;
+use App\Domain\Purchasing\Services\PurchasingBudgetService;
 use App\Domain\Purchasing\Services\SupplierCreditNoteService;
 use App\Domain\Purchasing\Services\SupplierReturnService;
 use App\Domain\Purchasing\Services\AccountsPayableService;
@@ -32,6 +34,7 @@ class PurchasingController extends Controller
         private readonly AccountsPayableService $accountsPayable,
         private readonly SupplierReturnService $supplierReturns,
         private readonly SupplierCreditNoteService $creditNotes,
+        private readonly PurchasingBudgetService $budget,
     ) {}
 
     public function suppliers(): JsonResponse
@@ -296,6 +299,31 @@ class PurchasingController extends Controller
         );
 
         return response()->json(['status'=>'success','message'=>'Supplier payment recorded.','data'=>$payment],201);
+    }
+
+    public function purchasingBudget(Request $request): JsonResponse
+    {
+        return response()->json([
+            'status'=>'success',
+            'data'=>$this->budget->summary($request->query('year')),
+        ]);
+    }
+
+    public function storePurchasingBudget(Request $request): JsonResponse
+    {
+        $data=$request->validate([
+            'budget_year'=>['required','integer','min:2000','max:2100'],
+            'allocated_amount'=>['required','numeric','gte:0'],
+            'notes'=>['nullable','string'],
+        ]);
+
+        $budget=$this->budget->createOrUpdate(
+            (int)$data['budget_year'],
+            (float)$data['allocated_amount'],
+            $data['notes'] ?? null,
+        );
+
+        return response()->json(['status'=>'success','message'=>'Purchasing budget saved.','data'=>$budget],201);
     }
 
     public function supplierReturns(): JsonResponse
