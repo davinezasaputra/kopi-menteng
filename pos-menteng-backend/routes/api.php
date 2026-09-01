@@ -101,6 +101,7 @@ Route::middleware('request.id')->group(function () {
             Route::post('/purchasing/payments', [PurchasingController::class, 'storeSupplierPayment'])->middleware('permission:purchasing.ap.pay');
             Route::get('/purchasing/reconciliation/orders/{order}', [PurchasingReconciliationController::class, 'show'])->middleware('permission:purchasing.reconciliation.view');
             Route::get('/purchasing/reports/dashboard', [PurchasingReportingController::class, 'dashboard'])->middleware('permission:purchasing.reporting.view');
+            Route::get('/purchasing/reports/supplier-performance', [PurchasingReportingController::class, 'supplierPerformance'])->middleware('permission:purchasing.reporting.view');
             Route::get('/purchasing/reports/ap-aging', [PurchasingReportingController::class, 'apAging'])->middleware('permission:purchasing.reporting.view');
             Route::get('/purchasing/returns', [PurchasingController::class, 'supplierReturns'])->middleware('permission:purchasing.return.view');
             Route::post('/purchasing/returns', [PurchasingController::class, 'storeSupplierReturn'])->middleware('permission:purchasing.return.create');

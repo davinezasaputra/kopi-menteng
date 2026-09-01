@@ -26,6 +26,23 @@ class PurchasingReportingController extends Controller
         ]);
     }
 
+
+    public function supplierPerformance(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'from' => ['nullable','date'],
+            'to' => ['nullable','date','after_or_equal:from'],
+        ]);
+
+        return response()->json([
+            'status'=>'success',
+            'data'=>$this->service->supplierPerformance(
+                $data['from'] ?? null,
+                $data['to'] ?? null,
+            ),
+        ]);
+    }
+
     public function apAging(): JsonResponse
     {
         return response()->json([
