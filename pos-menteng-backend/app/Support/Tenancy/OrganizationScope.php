@@ -34,6 +34,11 @@ class OrganizationScope
         return $query->whereRaw('1 = 0');
     }
 
+    public function warehouseIds(): array
+    {
+        return $this->warehouseQuery()->pluck('warehouses.id')->map(fn ($id) => (int) $id)->all();
+    }
+
     public function warehouse(?int $warehouseId = null): ?Warehouse
     {
         $query = $this->warehouseQuery()->orderByDesc('is_default')->orderBy('name');
