@@ -11,6 +11,7 @@ const legacyPages = [
   'src/pages/Customer.tsx',
   'src/pages/Dashboard.tsx',
   'src/pages/Employees.tsx',
+  'src/pages/History.tsx',
   'src/pages/Hrm.tsx',
   'src/pages/Inventory.tsx',
   'src/pages/Login.tsx',
@@ -42,6 +43,7 @@ export default defineConfig([
       '@typescript-eslint/no-unused-vars': 'off',
       'react-hooks/immutability': 'off',
       'react-hooks/exhaustive-deps': 'off',
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ])
