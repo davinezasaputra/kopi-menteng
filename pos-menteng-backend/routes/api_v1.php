@@ -48,6 +48,9 @@ Route::prefix('v1')->middleware(['request.id','security.headers'])->group(functi
             Route::put('/tenants/{tenant}', [DeveloperTenantController::class, 'update']);
             Route::get('/tenants/{tenant}/license', [DeveloperController::class, 'tenantLicense']);
             Route::put('/tenants/{tenant}/license', [DeveloperController::class, 'updateTenantLicense']);
+            Route::get('/tenants/{tenant}/subscription', [DeveloperController::class, 'subscription']);
+            Route::put('/tenants/{tenant}/subscription', [DeveloperController::class, 'updateSubscription']);
+            Route::get('/tenants/{tenant}/license-events', [DeveloperController::class, 'licenseEvents']);
             Route::get('/tenants/{tenant}/admins', [DeveloperController::class, 'tenantAdmins']);
             Route::put('/tenant-admins/{membership}', [DeveloperController::class, 'updateTenantAdmin']);
         });
