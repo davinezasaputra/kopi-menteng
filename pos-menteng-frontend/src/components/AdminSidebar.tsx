@@ -32,6 +32,9 @@ const purchasing: MenuItem[] = [
 }));
 
 const modules: ModuleGroup[] = [
+  { key:'platform',label:'Platform',icon:'⚡',items:[
+    {key:'developer-console',label:'Developer Console',icon:'🧠',path:'/platform',permission:'platform.admin'},
+  ]},
   { key:'erp',label:'ERP',icon:'🏢',subgroups:[
     { key:'erp-overview',label:'Overview',items:[
       {key:'operations',label:'Operations Center',icon:'📊',path:'/erp/operations',anyOf:['inventory.stock.view','purchasing.supplier.view','purchasing.order.view','sales.order.view','accounting.report.view']},
