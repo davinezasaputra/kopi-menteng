@@ -7,6 +7,7 @@ use App\Domain\Accounting\Services\FinanceClosingService;
 use App\Domain\Accounting\Models\ErpJournalBatch;
 use App\Domain\Accounting\Models\ErpJournalLine;
 use App\Domain\Core\Services\DocumentNumberService;
+use App\Domain\Organization\Models\Branch;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -60,6 +61,27 @@ class ErpAccountingService
         ]);
     }
 
+    private function resolveBranchId(array $data, $membership): int
+    {
+        $branchId = (int)($data['branch_id'] ?? $membership->branch_id);
+
+        $branch = Branch::query()
+            ->whereKey($branchId)
+            ->where('company_id', $membership->company_id)
+            ->whereHas('company', fn ($query) => $query->where('tenant_id', $membership->tenant_id))
+            ->first();
+
+        if (! $branch) {
+            throw ValidationException::withMessages(['branch_id' => 'Branch is outside the active organization scope.']);
+        }
+
+        if ((int)$branch->id !== (int)$membership->branch_id) {
+            throw ValidationException::withMessages(['branch_id' => 'Journal branch must match the active branch context.']);
+        }
+
+        return (int)$branch->id;
+    }
+
     public function postJournal(array $data): ErpJournalBatch
     {
         $membership = $this->context->membership();
@@ -68,6 +90,7 @@ class ErpAccountingService
             throw ValidationException::withMessages(['context' => 'No active ERP context.']);
         }
 
+        $branchId = $this->resolveBranchId($data, $membership);
         $this->closing->assertOpenForDate($data['journal_date'] ?? now()->toDateString(), $membership->tenant_id, $membership->company_id);
 
         $lines = $data['lines'];
@@ -93,7 +116,7 @@ class ErpAccountingService
             }
         }
 
-        return DB::transaction(function () use ($membership, $data, $lines, $debit, $credit) {
+        return DB::transaction(function () use ($membership, $data, $lines, $debit, $credit, $branchId) {
             $requestId = request()->attributes->get('request_id');
 
             if ($requestId) {
@@ -111,7 +134,7 @@ class ErpAccountingService
             $batch = ErpJournalBatch::create([
                 'tenant_id' => $membership->tenant_id,
                 'company_id' => $membership->company_id,
-                'branch_id' => $data['branch_id'] ?? $membership->branch_id,
+                'branch_id' => $branchId,
                 'journal_number' => $data['journal_number'] ?? $this->numbers->next('erp_journal', 'JRN'),
                 'journal_date' => $data['journal_date'] ?? now()->toDateString(),
                 'status' => 'posted',
