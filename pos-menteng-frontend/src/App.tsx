@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import './core/api/client';
+import { can, canAny } from './core/auth/permissions';
 import { useFoundationContext } from './core/hooks/useFoundationContext';
 import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
@@ -19,65 +20,108 @@ import Hrm from './pages/Hrm';
 import Employees from './pages/Employees';
 import FoundationAdmin from './pages/admin/FoundationAdmin';
 
-const AxiosInterceptor = ({ children }: { children: React.ReactNode }) => {
+const AxiosInterceptor = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
+
   useEffect(() => {
-    const interceptor = axios.interceptors.response.use((response) => response, (error) => {
-      if (error.response?.status === 401) {
-        localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.removeItem('permissions'); localStorage.removeItem('erp_context');
-        navigate('/', { replace: true });
-      }
-      return Promise.reject(error);
-    });
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('permissions');
+          localStorage.removeItem('erp_context');
+          localStorage.removeItem('foundation_loaded');
+          navigate('/', { replace: true });
+        }
+        return Promise.reject(error);
+      },
+    );
+
     return () => axios.interceptors.response.eject(interceptor);
   }, [navigate]);
+
   return <>{children}</>;
 };
 
-const FoundationBootstrap = () => {
-  useFoundationContext();
-  return null;
+const FoundationBootstrap = ({ children }: { children: ReactNode }) => {
+  const { loading } = useFoundationContext();
+
+  if (localStorage.getItem('token') && loading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center text-stone-600">
+        Memuat konteks organisasi...
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 };
 
-interface ProtectedRouteProps { children: React.ReactNode; allowedRoles?: string[]; requiredPermission?: string; }
-const ProtectedRoute = ({ children, allowedRoles, requiredPermission }: ProtectedRouteProps) => {
+interface ProtectedRouteProps {
+  children: ReactNode;
+  requiredPermission?: string;
+  requiredAnyPermission?: string[];
+}
+
+const ProtectedRoute = ({ children, requiredPermission, requiredAnyPermission }: ProtectedRouteProps) => {
   const token = localStorage.getItem('token');
   const userString = localStorage.getItem('user');
-  if (!token || !userString || userString === 'undefined') return <Navigate to="/" replace />;
-  let user: any;
-  try { user = JSON.parse(userString); } catch { localStorage.removeItem('user'); return <Navigate to="/" replace />; }
-  const permissions: string[] = (() => { try { return JSON.parse(localStorage.getItem('permissions') || '[]'); } catch { return []; } })();
-  if (requiredPermission && permissions.length > 0 && !permissions.includes(requiredPermission)) return <Navigate to="/dashboard" replace />;
-  if (!requiredPermission && allowedRoles && !allowedRoles.includes(user?.role)) {
-    if (user?.role === 'cashier' || user?.role === 'kasir') return <Navigate to="/pos" replace />;
-    return <Navigate to="/dashboard" replace />;
+
+  if (!token || !userString || userString === 'undefined') {
+    return <Navigate to="/" replace />;
   }
-  return children;
+
+  if (requiredPermission && !can(requiredPermission)) {
+    return <Navigate to="/forbidden" replace />;
+  }
+
+  if (requiredAnyPermission?.length && !canAny(requiredAnyPermission)) {
+    return <Navigate to="/forbidden" replace />;
+  }
+
+  return <>{children}</>;
 };
 
+const Forbidden = () => (
+  <main className="min-h-screen bg-stone-50 flex items-center justify-center px-6">
+    <section className="max-w-md rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-sm">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">403</div>
+      <h1 className="text-xl font-bold text-stone-900">Akses ditolak</h1>
+      <p className="mt-2 text-sm text-stone-600">Akun ini tidak memiliki permission untuk membuka halaman tersebut.</p>
+    </section>
+  </main>
+);
+
 function App() {
-  return <BrowserRouter>
-    <Toaster position="top-center" reverseOrder={false} />
-    <FoundationBootstrap />
-    <AxiosInterceptor>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/admin-login" element={<AdminLogin />} />
-        <Route path="/pos" element={<ProtectedRoute requiredPermission="pos.sale.view" allowedRoles={['developer','owner','manager','kasir']}><Pos /></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute requiredPermission="inventory.stock.view" allowedRoles={['developer','owner','manager']}><Inventory /></ProtectedRoute>} />
-        <Route path="/history" element={<ProtectedRoute allowedRoles={['developer','owner','manager']}><History /></ProtectedRoute>} />
-        <Route path="/raw-materials" element={<ProtectedRoute allowedRoles={['developer','owner','manager']}><RawMaterials /></ProtectedRoute>} />
-        <Route path="/raw-materials/import" element={<ProtectedRoute allowedRoles={['developer','owner','manager']}><RawMaterialImport /></ProtectedRoute>} />
-        <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['developer','owner','manager']}><Dashboard /></ProtectedRoute>} />
-        <Route path="/users" element={<ProtectedRoute requiredPermission="users.user.view" allowedRoles={['developer','owner','manager']}><Users /></ProtectedRoute>} />
-        <Route path="/accounting" element={<ProtectedRoute requiredPermission="accounting.journal.view" allowedRoles={['developer','owner','manager']}><Accounting /></ProtectedRoute>} />
-        <Route path="/customers" element={<ProtectedRoute allowedRoles={['developer','owner','manager']}><Customers /></ProtectedRoute>} />
-        <Route path="/employees" element={<ProtectedRoute requiredPermission="hr.employee.view" allowedRoles={['developer','admin','owner','manager']}><Employees /></ProtectedRoute>} />
-        <Route path="/hrm" element={<ProtectedRoute requiredPermission="hr.employee.view" allowedRoles={['developer','admin','owner','manager']}><Hrm /></ProtectedRoute>} />
-        <Route path="/admin/foundation" element={<ProtectedRoute requiredPermission="rbac.role.view"><FoundationAdmin /></ProtectedRoute>} />
-      </Routes>
-    </AxiosInterceptor>
-  </BrowserRouter>;
+  return (
+    <BrowserRouter>
+      <Toaster position="top-center" reverseOrder={false} />
+      <FoundationBootstrap>
+        <AxiosInterceptor>
+          <Routes>
+            <Route path="/" element={<Login />} />
+            <Route path="/admin-login" element={<AdminLogin />} />
+            <Route path="/forbidden" element={<Forbidden />} />
+
+            <Route path="/pos" element={<ProtectedRoute requiredPermission="pos.sale.view"><Pos /></ProtectedRoute>} />
+            <Route path="/inventory" element={<ProtectedRoute requiredPermission="inventory.stock.view"><Inventory /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute requiredAnyPermission={['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view']}><History /></ProtectedRoute>} />
+            <Route path="/raw-materials" element={<ProtectedRoute requiredPermission="inventory.stock.view"><RawMaterials /></ProtectedRoute>} />
+            <Route path="/raw-materials/import" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><RawMaterialImport /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute requiredAnyPermission={['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view']}><Dashboard /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute requiredPermission="users.user.view"><Users /></ProtectedRoute>} />
+            <Route path="/accounting" element={<ProtectedRoute requiredAnyPermission={['accounting.journal.view', 'accounting.erp_account.view', 'accounting.report.view']}><Accounting /></ProtectedRoute>} />
+            <Route path="/customers" element={<ProtectedRoute requiredPermission="sales.order.view"><Customers /></ProtectedRoute>} />
+            <Route path="/employees" element={<ProtectedRoute requiredPermission="hr.employee.view"><Employees /></ProtectedRoute>} />
+            <Route path="/hrm" element={<ProtectedRoute requiredPermission="hr.employee.view"><Hrm /></ProtectedRoute>} />
+            <Route path="/admin/foundation" element={<ProtectedRoute requiredPermission="rbac.role.view"><FoundationAdmin /></ProtectedRoute>} />
+          </Routes>
+        </AxiosInterceptor>
+      </FoundationBootstrap>
+    </BrowserRouter>
+  );
 }
 
 export default App;
