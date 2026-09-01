@@ -5,7 +5,8 @@ namespace App\Domain\Purchasing\Services;
 use App\Domain\Audit\Services\AuditService;
 use App\Domain\Core\Services\DocumentNumberService;
 use App\Domain\Organization\Models\Warehouse;
-use App\Domain\Purchasing\Models\{PurchaseOrder,PurchaseOrderItem,PurchaseRequisition,Supplier};
+use App\Domain\Purchasing\Models\{PurchaseOrder,PurchaseOrderItem,PurchaseRequisition,Supplier,PurchasingBudget};
+use App\Domain\Purchasing\Services\PurchasingBudgetService;
 use App\Models\Product;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,7 @@ class PurchaseOrderService
         private readonly TenantContext $context,
         private readonly DocumentNumberService $numbers,
         private readonly AuditService $audit,
+        private readonly PurchasingBudgetService $budget,
     ) {}
 
     public function create(
@@ -159,6 +161,23 @@ class PurchaseOrderService
             if ($row->status !== 'submitted') {
                 throw ValidationException::withMessages(['status'=>'Only submitted purchase orders can be approved.']);
             }
+
+            $budget = PurchasingBudget::query()
+                ->where('tenant_id', $row->tenant_id)
+                ->where('company_id', $row->company_id)
+                ->where('branch_id', $row->branch_id)
+                ->where('budget_year', optional($row->order_date)->year ?? now()->year)
+                ->where('is_active', true)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $budget) {
+                throw ValidationException::withMessages([
+                    'budget'=>'No active purchasing budget exists for the PO year and branch.'
+                ]);
+            }
+
+            $this->budget->commitForApprovedPurchase($budget, (float) $row->grand_total);
 
             $old=$row->only(['status']);
             $row->status='approved';
