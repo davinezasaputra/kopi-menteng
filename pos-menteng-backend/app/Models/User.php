@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -42,5 +43,16 @@ class User extends Authenticatable
     public function hasPermission(string $permission): bool
     {
         return app(\App\Support\Auth\PermissionService::class)->hasPermission($this, $permission);
+    }
+
+    public function setPinAttribute($value): void
+    {
+        if ($value === null || $value === '') {
+            $this->attributes['pin'] = null;
+            return;
+        }
+
+        $this->attributes['pin_hash'] = Hash::make((string) $value);
+        $this->attributes['pin'] = null;
     }
 }
