@@ -26,6 +26,7 @@ import PurchasingWorkspaceV2 from './pages/PurchasingWorkspaceV2';
 import OperationsCenter from './pages/OperationsCenter';
 import ReceiptTemplateSettings from './pages/ReceiptTemplateSettings';
 import DeveloperConsole from './pages/DeveloperConsoleSaas';
+import TenantProvisioning from './pages/TenantProvisioning';
 
 const AxiosInterceptor = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
@@ -72,6 +73,7 @@ function App() {
     <Route path="/admin-login" element={<AdminLogin />} />
     <Route path="/forbidden" element={<Forbidden />} />
     <Route path="/platform" element={<DeveloperRoute><DeveloperConsole /></DeveloperRoute>} />
+    <Route path="/platform/tenants/create" element={<DeveloperRoute><TenantProvisioning /></DeveloperRoute>} />
     <Route path="/pos" element={<ProtectedRoute requiredPermission="pos.sale.view"><Pos /></ProtectedRoute>} />
     <Route path="/inventory" element={<ProtectedRoute requiredPermission="inventory.stock.view"><Inventory /></ProtectedRoute>} />
     <Route path="/inventory/operations" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><InventoryOperations /></ProtectedRoute>} />
