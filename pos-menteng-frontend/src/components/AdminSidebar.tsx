@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { can, canAny } from '../core/auth/permissions';
 
 export type AdminSidebarProps = {
-  activePage?: 'users' | 'dashboard' | 'pos' | 'inventory' | 'raw-materials' | 'history' | 'accounting' | 'customers' | 'employees' | 'hrm' | 'foundation' | 'operations' | 'inventory-operations';
+  activePage?: 'users' | 'dashboard' | 'pos' | 'inventory' | 'raw-materials' | 'history' | 'accounting' | 'customers' | 'employees' | 'hrm' | 'foundation' | 'operations' | 'inventory-operations' | 'purchasing-orders';
 };
 
 type MenuItem = {
@@ -22,6 +22,7 @@ const menuItems: MenuItem[] = [
   { key: 'pos', label: 'Kasir (POS)', icon: '🛒', path: '/pos', permission: 'pos.sale.view' },
   { key: 'inventory', label: 'Data Produk', icon: '📦', path: '/inventory', permission: 'inventory.stock.view' },
   { key: 'inventory-operations', label: 'Kontrol Persediaan', icon: '📈', path: '/inventory/operations', anyOf: ['inventory.stock.view', 'inventory.stock.adjust'] },
+  { key: 'purchasing-orders', label: 'Purchase Order', icon: '📝', path: '/purchasing/orders', permission: 'purchasing.order.view' },
   { key: 'raw-materials', label: 'Bahan Baku', icon: '🫙', path: '/raw-materials', permission: 'inventory.stock.view' },
   { key: 'history', label: 'Riwayat & Laporan', icon: '🧾', path: '/history', anyOf: ['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view'] },
   { key: 'users', label: 'Kelola Users', icon: '👥', path: '/users', permission: 'users.user.view' },
