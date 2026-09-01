@@ -5,7 +5,6 @@ namespace App\Support\Tenancy;
 use App\Domain\Organization\Models\Location;
 use App\Domain\Organization\Models\Warehouse;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 class OrganizationScope
 {
@@ -16,7 +15,6 @@ class OrganizationScope
     public function warehouseQuery(): Builder
     {
         $context = $this->context;
-
         $query = Warehouse::query()
             ->where('status', 'active')
             ->where('branch_id', $context->branchId())
@@ -25,18 +23,12 @@ class OrganizationScope
         $location = $context->membership()?->location;
         if (! $location) return $query;
 
-        if ($location->type === 'warehouse') {
-            return $query->where('location_id', $location->id);
-        }
+        if ($location->type === 'warehouse') return $query->where('location_id', $location->id);
 
         if ($location->type === 'store') {
             $warehouseId = $location->settings['warehouse_id'] ?? null;
             if ($warehouseId !== null) return $query->whereKey((int) $warehouseId);
-
-            return $query->where(function ($q): void {
-                $q->whereNull('location_id')->where('is_default', true)
-                    ->orWhereHas('location', fn ($locationQuery) => $locationQuery->where('type', 'warehouse')->where('branch_id', $this->context->branchId()));
-            });
+            return $query->whereNull('location_id')->where('is_default', true);
         }
 
         return $query->whereRaw('1 = 0');
@@ -52,7 +44,6 @@ class OrganizationScope
     {
         $warehouse = $this->warehouse($warehouseId);
         if ($warehouse) return $warehouse;
-
         abort(403, 'Warehouse berada di luar organization/location scope aktif.');
     }
 
