@@ -1,1 +1,0 @@
-Purchasing workspace mapping staged. See AdminSidebar.tsx for production integration.
