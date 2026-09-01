@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Membership extends Model
 {
-    protected $fillable = ['tenant_id','user_id','company_id','branch_id','role_id','status','is_primary'];
+    protected $fillable = ['tenant_id','user_id','company_id','branch_id','location_id','role_id','status','is_primary'];
 
     protected function casts(): array
     {
@@ -19,6 +19,7 @@ class Membership extends Model
     public function user(): BelongsTo { return $this->belongsTo(\App\Models\User::class); }
     public function company(): BelongsTo { return $this->belongsTo(\App\Domain\Organization\Models\Company::class); }
     public function branch(): BelongsTo { return $this->belongsTo(\App\Domain\Organization\Models\Branch::class); }
+    public function location(): BelongsTo { return $this->belongsTo(\App\Domain\Organization\Models\Location::class); }
     public function role(): BelongsTo { return $this->belongsTo(Role::class); }
     public function permissionOverrides(): HasMany { return $this->hasMany(MembershipPermission::class); }
 }
