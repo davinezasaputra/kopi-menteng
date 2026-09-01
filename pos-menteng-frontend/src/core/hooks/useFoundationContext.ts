@@ -20,14 +20,31 @@ export function useFoundationContext() {
     api.get('/v1/me')
       .then(({ data }) => {
         const next = data?.data || data;
+        const apiContext = next?.context || {};
+        const role = next?.role || apiContext?.role;
+        const permissions = Array.isArray(next?.permissions)
+          ? next.permissions
+          : role === 'tenant-admin'
+            ? ['*']
+            : [];
+        const normalized = {
+          ...next,
+          tenant_id: next?.tenant_id ?? apiContext?.tenant_id ?? null,
+          company_id: next?.company_id ?? apiContext?.company_id ?? null,
+          branch_id: next?.branch_id ?? apiContext?.branch_id ?? null,
+          role,
+          permissions,
+        };
+
         if (!alive) return;
-        setContext(next);
+        setContext(normalized);
         localStorage.setItem('erp_context', JSON.stringify({
-          tenant_id: next.tenant_id,
-          company_id: next.company_id,
-          branch_id: next.branch_id,
+          tenant_id: normalized.tenant_id,
+          company_id: normalized.company_id,
+          branch_id: normalized.branch_id,
         }));
-        localStorage.setItem('permissions', JSON.stringify(next.permissions || []));
+        localStorage.setItem('erp_role', String(normalized.role || ''));
+        localStorage.setItem('permissions', JSON.stringify(permissions));
       })
       .catch(() => {
         if (!alive) return;
