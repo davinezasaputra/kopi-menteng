@@ -81,6 +81,8 @@ class EnterprisePermissionSyncSeeder extends Seeder
         ['hr', 'employee', 'manage'],
         ['pos', 'sale', 'view'],
         ['pos', 'sale', 'create'],
+        ['pos', 'receipt_template', 'view'],
+        ['pos', 'receipt_template', 'manage'],
         ['audit', 'audit_log', 'view'],
     ];
 
