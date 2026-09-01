@@ -2,6 +2,7 @@
 
 use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Warehouse;
+use App\Http\Controllers\Api\ReceiptTemplateController;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -46,4 +47,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
             'data' => $roles,
         ]);
     });
+
+    Route::get('/pos/receipt-template', [ReceiptTemplateController::class, 'show'])
+        ->middleware('permission:pos.receipt_template.view');
+    Route::put('/pos/receipt-template', [ReceiptTemplateController::class, 'update'])
+        ->middleware('permission:pos.receipt_template.manage');
 });
