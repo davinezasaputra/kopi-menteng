@@ -69,11 +69,12 @@ class FinanceClosingController extends Controller
             'to'=>['nullable','date','after_or_equal:from'],
         ]);
 
+        $context = app(\App\Support\Tenancy\TenantContext::class);
         $accountCode = $data['account_code'] ?? null;
         if (!$accountCode) {
             $accountCode = ErpAccount::query()
-                ->where('tenant_id', app(\App\Support\Tenancy\TenantContext::class)->tenantId())
-                ->where('company_id', app(\App\Support\Tenancy\TenantContext::class)->companyId())
+                ->where('tenant_id', $context->tenantId())
+                ->where('company_id', $context->companyId())
                 ->orderBy('code')
                 ->value('code');
         }
