@@ -19,6 +19,7 @@ import Customers from './pages/Customer';
 import Hrm from './pages/Hrm';
 import Employees from './pages/Employees';
 import FoundationAdmin from './pages/admin/FoundationAdmin';
+import EnterpriseOperations from './pages/EnterpriseOperations';
 
 const AxiosInterceptor = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
@@ -117,6 +118,7 @@ function App() {
             <Route path="/employees" element={<ProtectedRoute requiredPermission="hr.employee.view"><Employees /></ProtectedRoute>} />
             <Route path="/hrm" element={<ProtectedRoute requiredPermission="hr.employee.view"><Hrm /></ProtectedRoute>} />
             <Route path="/admin/foundation" element={<ProtectedRoute requiredPermission="rbac.role.view"><FoundationAdmin /></ProtectedRoute>} />
+            <Route path="/erp/operations" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'sales.order.view', 'accounting.report.view']}><EnterpriseOperations /></ProtectedRoute>} />
           </Routes>
         </AxiosInterceptor>
       </FoundationBootstrap>
