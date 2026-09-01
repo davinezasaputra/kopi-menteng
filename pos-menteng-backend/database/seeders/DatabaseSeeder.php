@@ -32,6 +32,7 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             ErpMasterSeeder::class,
+            EnterprisePermissionSyncSeeder::class,
         ]);
     }
 }
