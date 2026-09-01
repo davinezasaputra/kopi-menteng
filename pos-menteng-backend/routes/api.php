@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\OrganizationProvisioningController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PurchasingController;
 use App\Http\Controllers\Api\PurchasingReconciliationController;
+use App\Http\Controllers\Api\PurchasingReportingController;
 use App\Http\Controllers\Api\ErpAccountingController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RawMaterialController;
@@ -98,6 +99,8 @@ Route::middleware('request.id')->group(function () {
             Route::get('/purchasing/payments', [PurchasingController::class, 'supplierPayments'])->middleware('permission:purchasing.ap.view');
             Route::post('/purchasing/payments', [PurchasingController::class, 'storeSupplierPayment'])->middleware('permission:purchasing.ap.pay');
             Route::get('/purchasing/reconciliation/orders/{order}', [PurchasingReconciliationController::class, 'show'])->middleware('permission:purchasing.reconciliation.view');
+            Route::get('/purchasing/reports/dashboard', [PurchasingReportingController::class, 'dashboard'])->middleware('permission:purchasing.reporting.view');
+            Route::get('/purchasing/reports/ap-aging', [PurchasingReportingController::class, 'apAging'])->middleware('permission:purchasing.reporting.view');
             Route::get('/erp/accounting/accounts', [ErpAccountingController::class, 'accounts'])->middleware('permission:accounting.erp.account.view');
             Route::post('/erp/accounting/accounts', [ErpAccountingController::class, 'storeAccount'])->middleware('permission:accounting.erp.account.create');
             Route::get('/erp/accounting/journals', [ErpAccountingController::class, 'journals'])->middleware('permission:accounting.erp.journal.view');
