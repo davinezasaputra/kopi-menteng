@@ -9,6 +9,7 @@ use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Tenant;
+use App\Domain\Organization\Models\TenantLicense;
 use App\Domain\Organization\Models\Warehouse;
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -68,6 +69,16 @@ class OrganizationProvisioningController extends Controller
             'type' => ['nullable','string','max:50'], 'email' => ['nullable','email'], 'phone' => ['nullable','string','max:50'], 'address' => ['nullable','string'],
             'latitude' => ['nullable','numeric'], 'longitude' => ['nullable','numeric'],
         ]);
+
+        $company = Company::query()->findOrFail($data['company_id']);
+        $license = TenantLicense::query()->where('tenant_id', $company->tenant_id)->first();
+        if ($license && $license->max_branches !== null) {
+            $branchCount = Branch::query()->whereHas('company', fn ($q) => $q->where('tenant_id', $company->tenant_id))->count();
+            if ($branchCount >= $license->max_branches) {
+                return response()->json(['status' => 'error', 'message' => "Batas branch lisensi tercapai ({$license->max_branches}). Upgrade lisensi untuk menambah branch."], 422);
+            }
+        }
+
         if (Branch::where('company_id',$data['company_id'])->where('code',$data['code'])->exists()) return response()->json(['message'=>'Branch code already exists in this company.'],409);
         $data['status']='active';
         return response()->json(['status'=>'success','data'=>Branch::create($data)], 201);
@@ -92,6 +103,13 @@ class OrganizationProvisioningController extends Controller
         ]);
         $company = Company::query()->whereKey($data['company_id'])->where('tenant_id',$data['tenant_id'])->firstOrFail();
         $branch = Branch::query()->whereKey($data['branch_id'])->where('company_id',$company->id)->firstOrFail();
+        $license = TenantLicense::query()->where('tenant_id', $data['tenant_id'])->first();
+        if ($license && $license->max_users !== null) {
+            $activeUsers = Membership::query()->where('tenant_id', $data['tenant_id'])->where('status', 'active')->count();
+            if ($activeUsers >= $license->max_users) {
+                return response()->json(['status' => 'error', 'message' => "Batas user lisensi tercapai ({$license->max_users}). Upgrade lisensi untuk menambah user."], 422);
+            }
+        }
 
         return DB::transaction(function () use ($data, $branch) {
             $tenant = Tenant::findOrFail($data['tenant_id']);
