@@ -124,7 +124,32 @@ class PurchasingReportingService
     public function supplierPerformance(): array
     {
         $suppliers = $this->scope(Supplier::query())
-            ->withCount(['?']);
-        return [];
+            ->with(['purchaseOrders:id,supplier_id,grand_total,status'])
+            ->withCount([
+                'purchaseOrders as po_count',
+            ])
+            ->orderBy('name')
+            ->get();
+
+        return $suppliers->map(function (Supplier $supplier): array {
+            $orders = $supplier->purchaseOrders;
+            $poValue = 0.0;
+            $receivedOrders = 0;
+            foreach ($orders as $order) {
+                $poValue += (float) $order->grand_total;
+                if ($order->status === 'received') {
+                    $receivedOrders++;
+                }
+            }
+
+            return [
+                'supplier_id' => $supplier->id,
+                'supplier_code' => $supplier->code,
+                'supplier_name' => $supplier->name,
+                'purchase_order_count' => (int) $supplier->po_count,
+                'purchase_order_value' => round($poValue, 2),
+                'fully_received_po_count' => $receivedOrders,
+            ];
+        })->values()->all();
     }
 }
