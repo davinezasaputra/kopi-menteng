@@ -3,6 +3,7 @@
 use App\Domain\Identity\Models\Permission;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DeveloperController;
+use App\Http\Controllers\Api\DeveloperOrganizationController;
 use App\Http\Controllers\Api\DeveloperTenantController;
 use App\Http\Controllers\Api\FoundationController;
 use App\Http\Controllers\Api\OrganizationProvisioningController;
@@ -47,6 +48,13 @@ Route::prefix('v1')->middleware(['request.id','security.headers'])->group(functi
             Route::get('/tenants', [DeveloperController::class, 'tenants']);
             Route::post('/provision-tenant', [DeveloperController::class, 'provisionTenant']);
             Route::put('/tenants/{tenant}', [DeveloperTenantController::class, 'update']);
+            Route::get('/tenants/{tenant}/organization', [DeveloperOrganizationController::class, 'show']);
+            Route::post('/tenants/{tenant}/companies', [DeveloperOrganizationController::class, 'storeCompany']);
+            Route::put('/tenants/{tenant}/companies/{company}', [DeveloperOrganizationController::class, 'updateCompany']);
+            Route::post('/tenants/{tenant}/companies/{company}/branches', [DeveloperOrganizationController::class, 'storeBranch']);
+            Route::put('/tenants/{tenant}/companies/{company}/branches/{branch}', [DeveloperOrganizationController::class, 'updateBranch']);
+            Route::post('/tenants/{tenant}/companies/{company}/branches/{branch}/locations', [DeveloperOrganizationController::class, 'storeLocation']);
+            Route::put('/tenants/{tenant}/companies/{company}/branches/{branch}/locations/{location}', [DeveloperOrganizationController::class, 'updateLocation']);
             Route::get('/tenants/{tenant}/license', [DeveloperController::class, 'tenantLicense']);
             Route::put('/tenants/{tenant}/license', [DeveloperController::class, 'updateTenantLicense']);
             Route::get('/tenants/{tenant}/subscription', [DeveloperController::class, 'subscription']);
