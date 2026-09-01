@@ -77,15 +77,16 @@ class SupplierCreditNoteService
 
             if($invoice){
                 $invoice = SupplierInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
-                $outstanding=max(0,(float)$invoice->total_amount-(float)$invoice->paid_amount);
-                $alreadyCredited=(float)SupplierCreditNote::query()
-                    ->where('supplier_invoice_id',$invoice->id)
-                    ->sum('amount');
-                $remainingCapacity=max(0,$outstanding-$alreadyCredited);
 
-                if($amount>$remainingCapacity){
+                $alreadyCredited = (float) SupplierCreditNote::query()
+                    ->where('supplier_invoice_id', $invoice->id)
+                    ->sum('amount');
+
+                $creditCapacity = max(0, (float) $invoice->total_amount - $alreadyCredited);
+
+                if ($amount > $creditCapacity) {
                     throw ValidationException::withMessages([
-                        'amount'=>"Credit note exceeds invoice outstanding capacity: {$remainingCapacity}."
+                        'amount' => "Credit note exceeds invoice credit capacity: {$creditCapacity}."
                     ]);
                 }
             }
