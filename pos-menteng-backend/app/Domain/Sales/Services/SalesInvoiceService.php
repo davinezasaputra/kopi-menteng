@@ -3,6 +3,8 @@
 namespace App\Domain\Sales\Services;
 
 use App\Domain\Audit\Services\AuditService;
+use App\Domain\Accounting\Models\ErpAccount;
+use App\Domain\Accounting\Services\ErpAccountingService;
 use App\Domain\Core\Services\DocumentNumberService;
 use App\Domain\Sales\Models\{SalesInvoice,SalesShipment,SalesOrder};
 use App\Support\Tenancy\TenantContext;
@@ -15,6 +17,7 @@ class SalesInvoiceService
         private readonly TenantContext $context,
         private readonly DocumentNumberService $numbers,
         private readonly AuditService $audit,
+        private readonly ErpAccountingService $accounting,
     ) {}
 
     public function createFromShipment(SalesShipment $shipment): SalesInvoice
@@ -101,6 +104,20 @@ class SalesInvoiceService
                     'line_total'=>$item->line_total,
                 ]);
             }
+
+            $ar=ErpAccount::where('tenant_id',$row->tenant_id)->where('company_id',$row->company_id)->where('code','1200')->where('is_active',true)->where('is_postable',true)->firstOrFail();
+            $revenue=ErpAccount::where('tenant_id',$row->tenant_id)->where('company_id',$row->company_id)->where('code','4000')->where('is_active',true)->where('is_postable',true)->firstOrFail();
+
+            $this->accounting->postSourceJournal(
+                'sales_invoice',
+                (string)$invoice->id,
+                'Sales invoice '.$invoice->invoice_number,
+                [
+                    ['account_id'=>$ar->id,'debit'=>$total,'credit'=>0,'description'=>'Recognize accounts receivable'],
+                    ['account_id'=>$revenue->id,'debit'=>0,'credit'=>$total,'description'=>'Recognize sales revenue'],
+                ],
+                (int)$row->branch_id
+            );
 
             $invoice->load(['items.product','salesOrder','salesShipment','customer','creator']);
             $this->audit->record('created','sales_invoice',$invoice,null,$invoice->toArray());
