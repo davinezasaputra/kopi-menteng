@@ -6,6 +6,7 @@ use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Tenant;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Sales\Models\SalesOrder;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +16,7 @@ class InventoryReservation extends Model
 {
     protected $fillable = [
         'tenant_id','company_id','branch_id','warehouse_id',
-        'reservation_number','reference_type','reference_id','status',
+        'reservation_number','reference_type','reference_id','sales_order_id','status',
         'expires_at','created_by','released_by','released_at',
         'fulfilled_by','fulfilled_at','request_id','notes',
     ];
@@ -30,6 +31,7 @@ class InventoryReservation extends Model
     public function company(): BelongsTo { return $this->belongsTo(Company::class); }
     public function branch(): BelongsTo { return $this->belongsTo(Branch::class); }
     public function warehouse(): BelongsTo { return $this->belongsTo(Warehouse::class); }
+    public function salesOrder(): BelongsTo { return $this->belongsTo(SalesOrder::class,'sales_order_id'); }
     public function creator(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
     public function releaser(): BelongsTo { return $this->belongsTo(User::class, 'released_by'); }
     public function fulfiller(): BelongsTo { return $this->belongsTo(User::class, 'fulfilled_by'); }
