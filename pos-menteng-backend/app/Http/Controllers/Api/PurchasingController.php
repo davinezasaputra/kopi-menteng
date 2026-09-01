@@ -10,6 +10,8 @@ use App\Domain\Purchasing\Models\GoodsReceipt;
 use App\Domain\Purchasing\Models\SupplierInvoice;
 use App\Domain\Purchasing\Models\SupplierPayment;
 use App\Domain\Purchasing\Models\SupplierReturn;
+use App\Domain\Purchasing\Models\SupplierCreditNote;
+use App\Domain\Purchasing\Services\SupplierCreditNoteService;
 use App\Domain\Purchasing\Services\SupplierReturnService;
 use App\Domain\Purchasing\Services\AccountsPayableService;
 use App\Domain\Purchasing\Services\GoodsReceiptService;
@@ -29,6 +31,7 @@ class PurchasingController extends Controller
         private readonly GoodsReceiptService $goodsReceipts,
         private readonly AccountsPayableService $accountsPayable,
         private readonly SupplierReturnService $supplierReturns,
+        private readonly SupplierCreditNoteService $creditNotes,
     ) {}
 
     public function suppliers(): JsonResponse
@@ -334,6 +337,44 @@ class PurchasingController extends Controller
             'status'=>'success',
             'message'=>'Supplier return posted.',
             'data'=>$return,
+        ],201);
+    }
+
+    public function supplierCreditNotes(): JsonResponse
+    {
+        $rows = SupplierCreditNote::query()
+            ->with(['supplier','supplierReturn','supplierInvoice','creator'])
+            ->where('tenant_id',$this->context->tenantId())
+            ->where('company_id',$this->context->companyId())
+            ->where('branch_id',$this->context->branchId())
+            ->latest('id')
+            ->paginate(50);
+
+        return response()->json(['status'=>'success','data'=>$rows]);
+    }
+
+    public function storeSupplierCreditNote(Request $request): JsonResponse
+    {
+        $data=$request->validate([
+            'supplier_return_id'=>['required','integer','exists:supplier_returns,id'],
+            'supplier_invoice_id'=>['nullable','integer','exists:supplier_invoices,id'],
+            'credit_note_number'=>['required','string','max:100'],
+            'reason'=>['nullable','string'],
+            'notes'=>['nullable','string'],
+        ]);
+
+        $note=$this->creditNotes->createFromReturn(
+            SupplierReturn::findOrFail($data['supplier_return_id']),
+            isset($data['supplier_invoice_id']) ? SupplierInvoice::findOrFail($data['supplier_invoice_id']) : null,
+            $data['credit_note_number'],
+            $data['reason'] ?? null,
+            $data['notes'] ?? null,
+        );
+
+        return response()->json([
+            'status'=>'success',
+            'message'=>'Supplier credit note created.',
+            'data'=>$note,
         ],201);
     }
 
