@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             require base_path('routes/api_v1.php');
             Route::prefix('api')->group(function (): void {
                 require base_path('routes/api_master.php');
+                require base_path('routes/api_hrm_automation.php');
             });
         },
     )
