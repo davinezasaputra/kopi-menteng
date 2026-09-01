@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\OrganizationProvisioningController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PurchasingController;
 use App\Http\Controllers\Api\SalesOrderController;
+use App\Http\Controllers\Api\SalesApprovalController;
 use App\Http\Controllers\Api\PurchasingReconciliationController;
 use App\Http\Controllers\Api\PurchasingReportingController;
 use App\Http\Controllers\Api\ErpAccountingController;
@@ -113,6 +114,10 @@ Route::middleware('request.id')->group(function () {
             Route::post('/sales/orders', [SalesOrderController::class, 'store'])->middleware('permission:sales.order.create');
             Route::post('/sales/orders/{order}/submit', [SalesOrderController::class, 'submit'])->middleware('permission:sales.order.submit');
             Route::post('/sales/orders/{order}/cancel', [SalesOrderController::class, 'cancel'])->middleware('permission:sales.order.cancel');
+            Route::get('/sales/approval-matrix', [SalesApprovalController::class, 'rules'])->middleware('permission:sales.approval_matrix.view');
+            Route::post('/sales/approval-matrix', [SalesApprovalController::class, 'storeRule'])->middleware('permission:sales.approval_matrix.create');
+            Route::post('/sales/orders/{order}/approve', [SalesApprovalController::class, 'approve'])->middleware('permission:sales.order.approve');
+            Route::post('/sales/orders/{order}/reject', [SalesApprovalController::class, 'reject'])->middleware('permission:sales.order.approve');
             Route::get('/purchasing/budgets', [PurchasingController::class, 'purchasingBudget'])->middleware('permission:purchasing.budget.view');
             Route::get('/purchasing/approval-matrix', [PurchasingController::class, 'approvalMatrix'])->middleware('permission:purchasing.approval_matrix.view');
             Route::post('/purchasing/approval-matrix', [PurchasingController::class, 'storeApprovalMatrix'])->middleware('permission:purchasing.approval_matrix.create');
