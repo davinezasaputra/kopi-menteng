@@ -7,13 +7,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Keep index names unique across PostgreSQL relations.
-     * PostgreSQL index names are schema-wide, unlike MySQL where they are
-     * scoped to a table.
+     * PostgreSQL requires index names to be unique across the schema.
      */
     private function indexName(string $tableName): string
     {
-        return 'org_location_scope_'.str_replace('_', '_', $tableName).'_idx';
+        return 'org_location_scope_'.$tableName.'_idx';
     }
 
     public function up(): void
