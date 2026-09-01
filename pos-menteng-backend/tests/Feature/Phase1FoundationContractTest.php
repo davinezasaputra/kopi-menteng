@@ -45,19 +45,18 @@ class Phase1FoundationContractTest extends TestCase
 
     public function test_cross_tenant_context_header_is_rejected(): void
     {
-        [$tenantA,$companyA,$branchA,$user] = $this->identity();
+        [$tenantA,,$,$user] = $this->identity();
         $tenantB=Tenant::create(['name'=>'Tenant B','code'=>'TB','slug'=>'tenant-b']);
         $companyB=Company::create(['tenant_id'=>$tenantB->id,'code'=>'CO','name'=>'Company B']);
         $branchB=Branch::create(['company_id'=>$companyB->id,'code'=>'BR','name'=>'Branch B']);
         $response=$this->actingAs($user,'sanctum')->withHeaders(['X-Tenant-ID'=>$tenantB->id,'X-Company-ID'=>$companyB->id,'X-Branch-ID'=>$branchB->id])->getJson('/api/v1/me');
         $response->assertForbidden();
-        $this->assertSame($tenantA->id,app(TenantContext::class)->tenantId() ?? $tenantA->id);
-        $this->assertNotSame($tenantB->id, $tenantA->id);
+        $this->assertSame($tenantA->id, app(TenantContext::class)->tenantId() ?? $tenantA->id);
     }
 
     public function test_document_numbers_are_sequential_and_unique(): void
     {
-        [,,$,$user]=$this->identity();
+        [,$company,$branch,$user] = $this->identity();
         $membership=Membership::where('user_id',$user->id)->firstOrFail();
         app(TenantContext::class)->setMembership($membership);
         $service=app(DocumentSequenceService::class);
@@ -66,6 +65,8 @@ class Phase1FoundationContractTest extends TestCase
         $this->assertNotSame($a,$b);
         $this->assertSame('INV-'.now()->format('Ym').'-000001',$a);
         $this->assertSame('INV-'.now()->format('Ym').'-000002',$b);
+        $this->assertSame($company->id, $membership->company_id);
+        $this->assertSame($branch->id, $membership->branch_id);
     }
 
     public function test_system_role_cannot_be_deleted_by_policy(): void
