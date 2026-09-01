@@ -18,7 +18,7 @@ type MenuItem = {
 
 const menuItems: MenuItem[] = [
   { key: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard', anyOf: ['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view'] },
-  { key: 'operations', label: 'ERP Operations', icon: '🧭', path: '/erp/operations', anyOf: ['inventory.stock.view', 'purchasing.supplier.view', 'sales.order.view', 'accounting.report.view'] },
+  { key: 'operations', label: 'ERP Workspace', icon: '🧭', path: '/erp/operations', anyOf: ['purchasing.supplier.create', 'purchasing.order.create', 'sales.order.create', 'accounting.report.view', 'accounting.erp_journal.create'] },
   { key: 'pos', label: 'Kasir (POS)', icon: '🛒', path: '/pos', permission: 'pos.sale.view' },
   { key: 'inventory', label: 'Data Produk', icon: '📦', path: '/inventory', permission: 'inventory.stock.view' },
   { key: 'inventory-operations', label: 'Kontrol Persediaan', icon: '📈', path: '/inventory/operations', anyOf: ['inventory.stock.view', 'inventory.stock.adjust'] },
