@@ -9,6 +9,7 @@ use App\Domain\Identity\Models\Permission;
 use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\CostCenter;
 use App\Domain\Organization\Models\Department;
+use App\Http\Controllers\Controller;
 use App\Support\Responses\ApiResponse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
