@@ -10,7 +10,9 @@ use App\Domain\Organization\Models\Location;
 use App\Domain\Organization\Models\Tenant;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Sales\Models\SalesOrder;
+use App\Models\Category;
 use App\Models\Employee;
+use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -26,6 +28,7 @@ class LocationScopeSalesHrmAuditTest extends TestCase
     private Location $locationB;
     private Warehouse $warehouseA;
     private Warehouse $warehouseB;
+    private Product $product;
     private User $user;
 
     protected function setUp(): void
@@ -89,6 +92,15 @@ class LocationScopeSalesHrmAuditTest extends TestCase
             'status' => 'active',
         ]);
 
+        $category = Category::create(['name' => 'Scope Sales Category']);
+        $this->product = Product::create([
+            'tenant_id' => $this->tenant->id,
+            'category_id' => $category->id,
+            'name' => 'Scope Sales Product',
+            'price' => 100000,
+            'is_active' => true,
+        ]);
+
         $this->user = User::create([
             'name' => 'Location A Sales HRM Operator',
             'email' => 'sales-hrm-scope-a@example.com',
@@ -104,6 +116,7 @@ class LocationScopeSalesHrmAuditTest extends TestCase
 
         $permissionCodes = [
             'sales.order.view',
+            'sales.order.create',
             'sales.order.submit',
             'sales.order.cancel',
             'hr.employee.view',
@@ -207,7 +220,7 @@ class LocationScopeSalesHrmAuditTest extends TestCase
         $response = $this->actingAs($this->user)->postJson('/api/sales/orders', [
             'warehouse_id' => $this->warehouseB->id,
             'items' => [[
-                'product_id' => 999999,
+                'product_id' => $this->product->id,
                 'quantity' => 1,
                 'unit_price' => 100000,
             ]],
@@ -222,7 +235,7 @@ class LocationScopeSalesHrmAuditTest extends TestCase
         $employeeA = $this->makeEmployee($this->locationA, 'Employee A');
         $employeeB = $this->makeEmployee($this->locationB, 'Employee B');
 
-        $list = $this->actingAs($this->user)->getJson('/api/hrm/employees');
+        $list = $this->actingAs($this->user)->getJson('/api/employees');
         $list->assertOk();
 
         $ids = collect(data_get($list->json(), 'data.data', []))->pluck('id')->all();
@@ -230,7 +243,7 @@ class LocationScopeSalesHrmAuditTest extends TestCase
         $this->assertNotContains($employeeB->id, $ids);
 
         $this->actingAs($this->user)
-            ->getJson('/api/hrm/employees/' . $employeeB->id)
+            ->getJson('/api/employees/' . $employeeB->id)
             ->assertNotFound();
     }
 
@@ -239,13 +252,13 @@ class LocationScopeSalesHrmAuditTest extends TestCase
         $employeeB = $this->makeEmployee($this->locationB, 'Employee B Mutation');
 
         $this->actingAs($this->user)
-            ->putJson('/api/hrm/employees/' . $employeeB->id, [
+            ->putJson('/api/employees/' . $employeeB->id, [
                 'name' => 'Tampered Employee B',
             ])
             ->assertNotFound();
 
         $this->actingAs($this->user)
-            ->deleteJson('/api/hrm/employees/' . $employeeB->id)
+            ->deleteJson('/api/employees/' . $employeeB->id)
             ->assertNotFound();
 
         $this->assertDatabaseHas('employees', [
