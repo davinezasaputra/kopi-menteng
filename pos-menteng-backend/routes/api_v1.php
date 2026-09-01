@@ -45,6 +45,7 @@ Route::prefix('v1')->middleware(['request.id','security.headers'])->group(functi
             Route::get('/license-catalog', [DeveloperController::class, 'licenseCatalog']);
             Route::get('/permissions', fn () => response()->json(['status' => 'success', 'data' => Permission::query()->orderBy('module')->orderBy('resource')->orderBy('action')->get()]));
             Route::get('/tenants', [DeveloperController::class, 'tenants']);
+            Route::post('/provision-tenant', [DeveloperController::class, 'provisionTenant']);
             Route::put('/tenants/{tenant}', [DeveloperTenantController::class, 'update']);
             Route::get('/tenants/{tenant}/license', [DeveloperController::class, 'tenantLicense']);
             Route::put('/tenants/{tenant}/license', [DeveloperController::class, 'updateTenantLicense']);
