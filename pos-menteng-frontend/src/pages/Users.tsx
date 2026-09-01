@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
+import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 
 export default function Users() {
@@ -54,7 +54,7 @@ export default function Users() {
 
   return (
     <div className="flex h-screen w-full bg-stone-50 font-sans text-stone-800">
-      <AdminSidebar activePage="users"/> {/* Abaikan warning TS sesaat */}
+      <AdminSidebar activePage="users"/>
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-20 bg-white border-b border-stone-200 flex items-center justify-between px-8 shadow-sm">
