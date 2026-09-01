@@ -7,6 +7,7 @@ use App\Domain\Identity\Models\Membership;
 use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
+use App\Domain\Organization\Models\TenantLicense;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -39,6 +40,14 @@ class UserController extends Controller
             'company_id' => 'nullable|integer',
             'branch_id' => 'nullable|integer',
         ]);
+
+        $license = TenantLicense::query()->where('tenant_id', $context->tenantId())->first();
+        if ($license && $license->max_users !== null) {
+            $activeUsers = Membership::query()->where('tenant_id', $context->tenantId())->where('status', 'active')->count();
+            if ($activeUsers >= $license->max_users) {
+                return response()->json(['status' => 'error', 'message' => "Batas user lisensi tercapai ({$license->max_users}). Upgrade lisensi untuk menambah user."], 422);
+            }
+        }
 
         $role = Role::query()->where('tenant_id', $context->tenantId())->where('code', $validated['role_code'])->firstOrFail();
         $companyId = $validated['company_id'] ?? $context->companyId();
