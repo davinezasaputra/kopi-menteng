@@ -122,35 +122,78 @@ class PurchasingReportingService
         ];
     }
 
-    public function supplierPerformance(): array
+
+    public function supplierPerformance(?string $from = null, ?string $to = null): array
     {
+        $fromDate = $from ? Carbon::parse($from)->startOfDay() : null;
+        $toDate = $to ? Carbon::parse($to)->endOfDay() : null;
+
         $suppliers = $this->scope(Supplier::query())
-            ->with(['purchaseOrders:id,supplier_id,grand_total,status'])
-            ->withCount([
-                'purchaseOrders as po_count',
+            ->with([
+                'purchaseOrders' => fn ($q) => $q
+                    ->with(['items', 'goodsReceipts:id,purchase_order_id,receipt_date'])
+                    ->when($fromDate, fn ($q) => $q->where('created_at', '>=', $fromDate))
+                    ->when($toDate, fn ($q) => $q->where('created_at', '<=', $toDate)),
+                'supplierReturns.items',
             ])
-            ->orderBy('name')
             ->get();
 
         return $suppliers->map(function (Supplier $supplier): array {
             $orders = $supplier->purchaseOrders;
-            $poValue = 0.0;
-            $receivedOrders = 0;
+            $poCount = $orders->count();
+            $purchaseValue = round((float) $orders->sum(fn ($po) => (float) $po->grand_total), 2);
+            $receivedCount = $orders->where('status', 'received')->count();
+
+            $eligible = 0;
+            $onTime = 0;
+            $returnsValue = 0.0;
+
             foreach ($orders as $order) {
-                $poValue += (float) $order->grand_total;
-                if ($order->status === 'received') {
-                    $receivedOrders++;
+                if ($order->status !== 'received' || ! $order->expected_date) {
+                    continue;
+                }
+
+                $eligible++;
+                $lastReceiptDate = $order->goodsReceipts->max('receipt_date');
+                if ($lastReceiptDate && Carbon::parse($lastReceiptDate)->lte(Carbon::parse($order->expected_date))) {
+                    $onTime++;
                 }
             }
+
+            foreach ($supplier->supplierReturns as $return) {
+                $returnsValue += (float) $return->items->sum(fn ($item) => (float) $item->line_value);
+            }
+
+            $fulfillmentRate = $poCount > 0 ? round(($receivedCount / $poCount) * 100, 2) : 0;
+            $onTimeRate = $eligible > 0 ? round(($onTime / $eligible) * 100, 2) : null;
+            $returnRate = $purchaseValue > 0 ? round(($returnsValue / $purchaseValue) * 100, 2) : 0;
+
+            $score = round(
+                (($fulfillmentRate * 0.40) +
+                (($onTimeRate ?? 100) * 0.40) +
+                (max(0, 100 - $returnRate) * 0.20)),
+                2
+            );
 
             return [
                 'supplier_id' => $supplier->id,
                 'supplier_code' => $supplier->code,
                 'supplier_name' => $supplier->name,
-                'purchase_order_count' => (int) $supplier->po_count,
-                'purchase_order_value' => round($poValue, 2),
-                'fully_received_po_count' => $receivedOrders,
+                'purchase_order_count' => $poCount,
+                'purchase_order_value' => $purchaseValue,
+                'fully_received_po_count' => $receivedCount,
+                'fulfillment_rate_percent' => $fulfillmentRate,
+                'on_time_delivery_count' => $onTime,
+                'on_time_delivery_rate_percent' => $onTimeRate,
+                'return_value' => round($returnsValue, 2),
+                'return_rate_percent' => $returnRate,
+                'supplier_score' => $score,
+                'sla_status' => $score >= 90 ? 'excellent' : ($score >= 75 ? 'good' : ($score >= 60 ? 'watch' : 'poor')),
             ];
-        })->values()->all();
+        })
+        ->sortByDesc('supplier_score')
+        ->values()
+        ->all();
     }
+
 }
