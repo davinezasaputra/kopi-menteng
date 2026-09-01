@@ -252,7 +252,6 @@ class ErpMasterSeeder extends Seeder
                 'name'=>$product['name'],
                 'description'=>'ERP demo master product',
                 'price'=>$product['price'],
-                'stock'=>$product['stock'],
                 'is_active'=>true,
             ];
 
@@ -264,27 +263,34 @@ class ErpMasterSeeder extends Seeder
                 $existing->fill($attributes)->save();
                 $productModel=$existing;
             } else {
+                $attributes['stock']=$product['stock'];
                 $productModel=Product::create($attributes);
             }
 
             if (Schema::hasTable('inventory_balances')) {
-                DB::table('inventory_balances')->updateOrInsert(
-                    [
+                $exists = DB::table('inventory_balances')
+                    ->where('tenant_id',$tenant->id)
+                    ->where('company_id',$company->id)
+                    ->where('branch_id',$branch->id)
+                    ->where('warehouse_id',$warehouse->id)
+                    ->where('product_id',$productModel->id)
+                    ->exists();
+
+                if (! $exists) {
+                    DB::table('inventory_balances')->insert([
                         'tenant_id'=>$tenant->id,
                         'company_id'=>$company->id,
                         'branch_id'=>$branch->id,
                         'warehouse_id'=>$warehouse->id,
                         'product_id'=>$productModel->id,
-                    ],
-                    [
                         'quantity'=>$product['stock'],
                         'reserved_quantity'=>0,
                         'average_cost'=>round($product['price']*0.40,4),
                         'last_cost'=>round($product['price']*0.40,4),
-                        'updated_at'=>now(),
                         'created_at'=>now(),
-                    ]
-                );
+                        'updated_at'=>now(),
+                    ]);
+                }
             }
         }
 
