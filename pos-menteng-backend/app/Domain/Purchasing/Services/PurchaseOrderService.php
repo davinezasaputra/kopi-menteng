@@ -19,6 +19,7 @@ class PurchaseOrderService
         private readonly DocumentNumberService $numbers,
         private readonly AuditService $audit,
         private readonly PurchasingBudgetService $budget,
+        private readonly PurchasingApprovalMatrixService $approvalMatrix,
     ) {}
 
     public function create(
@@ -177,6 +178,7 @@ class PurchaseOrderService
                 ]);
             }
 
+            $approvalRule = $this->approvalMatrix->assertCanApprove($row);
             $this->budget->commitForApprovedPurchase($budget, (float) $row->grand_total);
 
             $old=$row->only(['status']);

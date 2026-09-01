@@ -14,6 +14,8 @@ use App\Domain\Purchasing\Models\SupplierCreditNote;
 use App\Domain\Purchasing\Models\PurchasingBudget;
 use App\Domain\Purchasing\Services\PurchasingBudgetService;
 use App\Domain\Purchasing\Services\SupplierCreditNoteService;
+use App\Domain\Purchasing\Models\PurchasingApprovalMatrixRule;
+use App\Domain\Purchasing\Services\PurchasingApprovalMatrixService;
 use App\Domain\Purchasing\Services\SupplierReturnService;
 use App\Domain\Purchasing\Services\AccountsPayableService;
 use App\Domain\Purchasing\Services\GoodsReceiptService;
@@ -35,6 +37,7 @@ class PurchasingController extends Controller
         private readonly SupplierReturnService $supplierReturns,
         private readonly SupplierCreditNoteService $creditNotes,
         private readonly PurchasingBudgetService $budget,
+        private readonly PurchasingApprovalMatrixService $approvalMatrix,
     ) {}
 
     public function suppliers(): JsonResponse
@@ -324,6 +327,51 @@ class PurchasingController extends Controller
         );
 
         return response()->json(['status'=>'success','message'=>'Purchasing budget saved.','data'=>$budget],201);
+    }
+
+    public function approvalMatrix(): JsonResponse
+    {
+        return response()->json([
+            'status'=>'success',
+            'data'=>$this->approvalMatrix->listRules(),
+        ]);
+    }
+
+    public function storeApprovalMatrix(Request $request): JsonResponse
+    {
+        $data=$request->validate([
+            'approver_role_id'=>['required','integer','exists:roles,id'],
+            'min_amount'=>['required','numeric','gte:0'],
+            'max_amount'=>['nullable','numeric','gt:min_amount'],
+            'priority'=>['nullable','integer','min:1'],
+            'notes'=>['nullable','string'],
+        ]);
+
+        $rule=$this->approvalMatrix->createRule(
+            (int)$data['approver_role_id'],
+            (float)$data['min_amount'],
+            isset($data['max_amount']) ? (float)$data['max_amount'] : null,
+            (int)($data['priority'] ?? 1),
+            $data['notes'] ?? null,
+        );
+
+        return response()->json(['status'=>'success','message'=>'Approval matrix rule created.','data'=>$rule->load('approverRole')],201);
+    }
+
+    public function rejectPurchaseOrder(Request $request, int $order): JsonResponse
+    {
+        $data=$request->validate([
+            'reason'=>['required','string','min:3'],
+        ]);
+
+        $row=PurchaseOrder::findOrFail($order);
+        $result=$this->approvalMatrix->reject($row,$data['reason']);
+
+        return response()->json([
+            'status'=>'success',
+            'message'=>'Purchase order rejected.',
+            'data'=>$result,
+        ]);
     }
 
     public function supplierReturns(): JsonResponse
