@@ -5,15 +5,15 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['request.id', 'security.headers', 'auth:sanctum', 'throttle:erp', 'tenant'])->group(function (): void {
     Route::get('/hrm/payroll/automation/config', [HrmController::class, 'getPayrollAutomationConfig'])
-        ->middleware('permission:hr.payroll.automation.view');
+        ->middleware('permission:hr.employee.view');
     Route::patch('/hrm/payroll/automation/config', [HrmController::class, 'updatePayrollAutomationConfig'])
-        ->middleware('permission:hr.payroll.automation.manage');
+        ->middleware('permission:hr.employee.manage');
     Route::post('/hrm/payrolls/{id}/generate-auto', [HrmController::class, 'generatePayrollAuto'])
-        ->middleware('permission:hr.payroll.automation.run');
+        ->middleware('permission:hr.employee.manage');
     Route::post('/hrm/payrolls/{id}/send-whatsapp', [HrmController::class, 'sendPayrollWhatsApp'])
-        ->middleware('permission:hr.payroll.notification.send');
+        ->middleware('permission:hr.employee.manage');
     Route::get('/hrm/payroll/notifications', [HrmController::class, 'payrollNotifications'])
-        ->middleware('permission:hr.payroll.notification.view');
+        ->middleware('permission:hr.employee.view');
     Route::get('/hrm/payroll/notifications/{id}/status', [HrmController::class, 'payrollNotificationStatus'])
-        ->middleware('permission:hr.payroll.notification.view');
+        ->middleware('permission:hr.employee.view');
 });
