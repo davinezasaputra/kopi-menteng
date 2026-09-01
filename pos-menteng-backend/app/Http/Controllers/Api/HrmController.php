@@ -7,7 +7,6 @@ use App\Domain\Hrm\Services\PayrollAutomationService;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Employee;
-use App\Models\OperationalExpense;
 use App\Models\Payroll;
 use App\Models\PayrollNotification;
 use App\Support\Tenancy\TenantContext;
@@ -62,9 +61,9 @@ class HrmController extends Controller
 
     public function paySalary(string $id){
         $payroll=$this->payrollScopedQuery()->with('employee')->findOrFail($id);if($payroll->is_paid)return response()->json(['status'=>'error','message'=>'Gaji ini sudah ditransfer sebelumnya.'],400);
-        DB::transaction(function()use($payroll){$old=$payroll->toArray();$payroll->update(['is_paid'=>true]);OperationalExpense::create(['tenant_id'=>$this->context->tenantId(),'company_id'=>$this->context->companyId(),'branch_id'=>$this->context->branchId(),'name'=>'Pembayaran Gaji: '.$payroll->employee->name.' (Periode '.$payroll->period.')','amount'=>$payroll->total_salary,'expense_date'=>Carbon::today(),'recorded_by'=>'Sistem HRIS (Otomatis)']);$this->audit->record('paid','hrm.payroll',$payroll,$old,$payroll->fresh()->toArray());});
+        DB::transaction(function()use($payroll){$old=$payroll->toArray();$payroll->update(['is_paid'=>true]);$this->audit->record('paid','hrm.payroll',$payroll,$old,$payroll->fresh()->toArray());});
         try{$automation=$this->payrollAutomation->handlePaidPayroll($payroll->fresh());}catch(\Throwable $e){$this->audit->record('payroll_notification_dispatch_failed','hrm.payroll',$payroll,null,['error'=>$e->getMessage()]);$automation=['status'=>'failed','message'=>'Pembayaran sukses, tetapi automation WhatsApp/PDF gagal diproses.','error'=>$e->getMessage()];}
-        return response()->json(['status'=>'success','message'=>'Gaji berhasil dibayar dan pengeluaran tercatat.','automation'=>$automation]);
+        return response()->json(['status'=>'success','message'=>'Gaji berhasil dibayar dan jurnal pembayaran diproses.','automation'=>$automation]);
     }
 
     private function payrollScopedQuery(){
