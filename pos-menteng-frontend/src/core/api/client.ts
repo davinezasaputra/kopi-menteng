@@ -9,19 +9,14 @@ const isMutating = (method?: string) => ['POST', 'PUT', 'PATCH', 'DELETE'].inclu
 const isExcludedIdempotencyPath = (url: string) => /\/v1\/auth\/(login|login-pin|logout)$/.test(url) || /\/midtrans\/webhook$/.test(url);
 const requestPath = (url?: string) => {
   if (!url) return '';
-  try {
-    return new URL(url, API_URL).pathname;
-  } catch {
-    return url.split('?')[0] || '';
-  }
+  try { return new URL(url, API_URL).pathname; } catch { return url.split('?')[0] || ''; }
 };
 
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  const contextRaw = localStorage.getItem('erp_context');
-
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
+  const contextRaw = localStorage.getItem('erp_context');
   if (contextRaw) {
     try {
       const context = JSON.parse(contextRaw) as { tenant_id?: number; company_id?: number; branch_id?: number };
@@ -29,23 +24,21 @@ axios.interceptors.request.use((config) => {
       if (context.company_id) config.headers['X-Company-ID'] = String(context.company_id);
       if (context.branch_id) config.headers['X-Branch-ID'] = String(context.branch_id);
     } catch {
-      // Invalid client context is ignored; backend remains authoritative.
+      // Backend remains authoritative when client-side context is invalid.
     }
   }
 
-  const requestId = config.headers['X-Request-ID'];
-  if (!requestId) {
-    const generated = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+  if (!config.headers['X-Request-ID']) {
+    const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `web-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-    config.headers['X-Request-ID'] = generated;
+    config.headers['X-Request-ID'] = requestId;
   }
 
   const path = requestPath(config.url);
   if (isMutating(config.method) && !isExcludedIdempotencyPath(path) && !config.headers['X-Idempotency-Key']) {
     const slug = path.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(-35) || 'request';
-    const key = `WEB-${Date.now()}-${slug}`.slice(0, 100);
-    config.headers['X-Idempotency-Key'] = key;
+    config.headers['X-Idempotency-Key'] = `WEB-${Date.now()}-${slug}`.slice(0, 100);
   }
 
   return config;
