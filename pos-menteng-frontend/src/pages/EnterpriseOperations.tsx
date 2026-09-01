@@ -17,17 +17,13 @@ type Resource = {
   createEndpoint?: string;
   createPermission?: string;
   fields?: Field[];
-  actions?: Array<{ label: string; endpoint: (id: string) => string; method?: 'post'; permission: string; bodyField?: string }>;
+  actions?: Array<{ label: string; endpoint: (id: string) => string; permission: string; bodyField?: string }>;
 };
-
-type ModuleConfig = { key: ModuleKey; label: string; icon: string; permission: string; resources: Resource[] };
-
-const idField: Field = { name: 'id', label: 'Record ID', required: true, type: 'number' };
-const reasonField: Field = { name: 'reason', label: 'Reason', required: true, type: 'textarea' };
+type ModuleConfig = { key: ModuleKey; label: string; icon: string; resources: Resource[] };
 
 const modules: ModuleConfig[] = [
   {
-    key: 'purchasing', label: 'Purchasing', icon: '🛒', permission: 'purchasing.supplier.view',
+    key: 'purchasing', label: 'Purchasing', icon: '🛒',
     resources: [
       { key: 'suppliers', label: 'Suppliers', endpoint: '/purchasing/suppliers', permission: 'purchasing.supplier.view', createEndpoint: '/purchasing/suppliers', createPermission: 'purchasing.supplier.create', fields: [
         { name: 'code', label: 'Code', required: true }, { name: 'name', label: 'Name', required: true }, { name: 'tax_id', label: 'Tax ID' }, { name: 'contact_name', label: 'Contact' }, { name: 'phone', label: 'Phone' }, { name: 'email', label: 'Email' }, { name: 'address', label: 'Address', type: 'textarea' }, { name: 'payment_terms_days', label: 'Payment Terms (days)', type: 'number' },
@@ -74,7 +70,7 @@ const modules: ModuleConfig[] = [
     ],
   },
   {
-    key: 'sales', label: 'Sales', icon: '💰', permission: 'sales.order.view',
+    key: 'sales', label: 'Sales', icon: '💰',
     resources: [
       { key: 'orders', label: 'Sales Orders', endpoint: '/sales/orders', permission: 'sales.order.view', createEndpoint: '/sales/orders', createPermission: 'sales.order.create', fields: [
         { name: 'customer_id', label: 'Customer ID', type: 'number' }, { name: 'warehouse_id', label: 'Warehouse ID', type: 'number' }, { name: 'items', label: 'Items JSON', type: 'textarea', required: true, placeholder: '[{"product_id":1,"quantity":1,"unit_price":10000}]' }, { name: 'discount_amount', label: 'Discount', type: 'number' }, { name: 'tax_amount', label: 'Tax', type: 'number' }, { name: 'notes', label: 'Notes', type: 'textarea' },
@@ -99,7 +95,7 @@ const modules: ModuleConfig[] = [
       { key: 'invoices', label: 'Sales Invoices', endpoint: '/sales/invoices', permission: 'sales.invoice.view', createEndpoint: '/sales/invoices', createPermission: 'sales.invoice.create', fields: [
         { name: 'sales_order_id', label: 'Sales Order ID', type: 'number', required: true }, { name: 'invoice_date', label: 'Invoice Date', type: 'date' }, { name: 'due_date', label: 'Due Date', type: 'date' }, { name: 'notes', label: 'Notes', type: 'textarea' },
       ] },
-      { key: 'receivables', label: 'Receivables', endpoint: '/sales/receivables', permission: 'sales.receivable.view', actions: [{ label: 'Aging', endpoint: id => `/sales/receivables/aging?record_id=${id}`, permission: 'sales.receivable.view' }] },
+      { key: 'receivables', label: 'Receivables', endpoint: '/sales/receivables', permission: 'sales.receivable.view' },
       { key: 'payments', label: 'Customer Payments', endpoint: '/sales/payments', permission: 'sales.payment.view', createEndpoint: '/sales/payments', createPermission: 'sales.payment.create', fields: [
         { name: 'sales_invoice_id', label: 'Invoice ID', type: 'number', required: true }, { name: 'amount', label: 'Amount', type: 'number', required: true }, { name: 'method', label: 'Method' }, { name: 'reference', label: 'Reference' }, { name: 'notes', label: 'Notes', type: 'textarea' },
       ] },
@@ -111,7 +107,7 @@ const modules: ModuleConfig[] = [
     ],
   },
   {
-    key: 'finance', label: 'Finance', icon: '📊', permission: 'accounting.report.view',
+    key: 'finance', label: 'Finance', icon: '📊',
     resources: [
       { key: 'periods', label: 'Fiscal Periods', endpoint: '/finance/periods', permission: 'accounting.fiscal_period.view', createEndpoint: '/finance/periods', createPermission: 'accounting.fiscal_period.manage', fields: [
         { name: 'period', label: 'Period', required: true, placeholder: '2026-09' }, { name: 'starts_at', label: 'Starts At', type: 'date' }, { name: 'ends_at', label: 'Ends At', type: 'date' },
@@ -133,10 +129,8 @@ const modules: ModuleConfig[] = [
   },
 ];
 
-const moduleTabs = modules.filter(module => can(module.permission) || canAny(module.resources.map(resource => resource.permission)));
-
 function getRecordId(row: Row): string | null {
-  const value = row.id ?? row[`${Object.keys(row)[0] ?? ''}`];
+  const value = row.id;
   return value === undefined || value === null ? null : String(value);
 }
 
@@ -152,7 +146,7 @@ function normalizeBody(form: Record<string, string>): Record<string, unknown> {
     if (value === '') return;
     const trimmed = value.trim();
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      try { result[key] = JSON.parse(trimmed); return; } catch { /* keep as text */ }
+      try { result[key] = JSON.parse(trimmed); return; } catch { /* keep text */ }
     }
     if (/^-?\d+(\.\d+)?$/.test(trimmed)) result[key] = Number(trimmed);
     else result[key] = value;
@@ -161,9 +155,10 @@ function normalizeBody(form: Record<string, string>): Record<string, unknown> {
 }
 
 export default function EnterpriseOperations() {
-  const [activeModule, setActiveModule] = useState<ModuleKey>(moduleTabs[0]?.key ?? 'finance');
-  const module = useMemo(() => modules.find(item => item.key === activeModule) ?? modules[0], [activeModule]);
-  const visibleResources = useMemo(() => module.resources.filter(resource => can(resource.permission)), [module]);
+  const accessibleModules = useMemo(() => modules.filter(item => canAny(item.resources.map(resource => resource.permission))), []);
+  const [activeModule, setActiveModule] = useState<ModuleKey>(accessibleModules[0]?.key ?? 'finance');
+  const module = useMemo(() => accessibleModules.find(item => item.key === activeModule) ?? accessibleModules[0], [accessibleModules, activeModule]);
+  const visibleResources = useMemo(() => module?.resources.filter(resource => can(resource.permission)) ?? [], [module]);
   const [activeResourceKey, setActiveResourceKey] = useState<ResourceKey>(visibleResources[0]?.key ?? '');
   const resource = visibleResources.find(item => item.key === activeResourceKey) ?? visibleResources[0];
   const [rows, setRows] = useState<Row[]>([]);
@@ -191,6 +186,12 @@ export default function EnterpriseOperations() {
 
   useEffect(() => { void load(); }, [resource?.endpoint]);
 
+  const switchModule = (key: ModuleKey) => {
+    setActiveModule(key); setQuery(''); setShowCreate(false); setForm({}); setRows([]); setError('');
+    const next = accessibleModules.find(item => item.key === key);
+    setActiveResourceKey(next?.resources.find(item => can(item.permission))?.key ?? '');
+  };
+
   const switchResource = (key: string) => {
     setActiveResourceKey(key); setRows([]); setError(''); setQuery(''); setShowCreate(false); setForm({});
   };
@@ -200,8 +201,7 @@ export default function EnterpriseOperations() {
     try {
       await api.post(resource.createEndpoint, normalizeBody(form));
       toast.success(`${resource.label} berhasil dibuat.`);
-      setShowCreate(false); setForm({});
-      await load();
+      setShowCreate(false); setForm({}); await load();
     } catch (err) {
       const message = err && typeof err === 'object' && 'response' in err ? String((err as { response?: { data?: { message?: string } } }).response?.data?.message || '') : '';
       toast.error(message || 'Gagal menyimpan data.');
@@ -211,22 +211,17 @@ export default function EnterpriseOperations() {
   const runAction = async (row: Row, action: NonNullable<Resource['actions']>[number]) => {
     const id = getRecordId(row); if (!id) return toast.error('Record tidak memiliki ID.');
     try {
-      const body = action.bodyField ? { [action.bodyField]: window.prompt('Masukkan reason:') || '' } : undefined;
-      if (action.bodyField && !body?.[action.bodyField]) return;
-      await api.post(action.endpoint(id), body);
-      toast.success(`${action.label} berhasil.`);
-      await load();
+      const reason = action.bodyField ? window.prompt('Masukkan reason:') : undefined;
+      if (action.bodyField && !reason) return;
+      await api.post(action.endpoint(id), action.bodyField ? { [action.bodyField]: reason } : undefined);
+      toast.success(`${action.label} berhasil.`); await load();
     } catch (err) {
       const message = err && typeof err === 'object' && 'response' in err ? String((err as { response?: { data?: { message?: string } } }).response?.data?.message || '') : '';
       toast.error(message || `${action.label} gagal.`);
     }
   };
 
-  const filteredRows = rows.filter(row => {
-    if (!query.trim()) return true;
-    const haystack = JSON.stringify(row).toLowerCase();
-    return haystack.includes(query.toLowerCase());
-  });
+  const filteredRows = rows.filter(row => !query.trim() || JSON.stringify(row).toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div className="flex h-screen w-full bg-stone-50 font-sans text-stone-800">
@@ -237,7 +232,7 @@ export default function EnterpriseOperations() {
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">Enterprise Workspace</div>
               <h1 className="mt-1 text-2xl font-bold text-stone-900">ERP Operations</h1>
-              <p className="mt-1 text-sm text-stone-500">Purchasing, Sales, dan Finance sekarang memiliki workspace operasional yang terhubung ke API bisnis.</p>
+              <p className="mt-1 text-sm text-stone-500">Workspace operasional terhubung ke endpoint bisnis dengan permission dan organization scope.</p>
             </div>
             <button onClick={() => void load()} className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-stone-800">↻ Refresh</button>
           </div>
@@ -245,32 +240,21 @@ export default function EnterpriseOperations() {
 
         <main className="min-h-0 flex-1 overflow-y-auto p-6 lg:p-8">
           <div className="mb-5 flex flex-wrap gap-2">
-            {moduleTabs.map(item => (
-              <button key={item.key} onClick={() => setActiveModule(item.key)} className={`rounded-2xl px-5 py-3 text-sm font-bold transition ${activeModule === item.key ? 'bg-amber-700 text-white shadow-sm' : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-100'}`}>
-                <span className="mr-2">{item.icon}</span>{item.label}
-              </button>
-            ))}
+            {accessibleModules.map(item => <button key={item.key} onClick={() => switchModule(item.key)} className={`rounded-2xl px-5 py-3 text-sm font-bold transition ${activeModule === item.key ? 'bg-amber-700 text-white shadow-sm' : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-100'}`}><span className="mr-2">{item.icon}</span>{item.label}</button>)}
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
             <aside className="rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
               <div className="px-3 pb-2 text-xs font-bold uppercase tracking-wider text-stone-400">Workspace Menu</div>
               <div className="space-y-1">
-                {visibleResources.map(item => (
-                  <button key={item.key} onClick={() => switchResource(item.key)} className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${resource?.key === item.key ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'}`}>
-                    {item.label}
-                  </button>
-                ))}
+                {visibleResources.map(item => <button key={item.key} onClick={() => switchResource(item.key)} className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${resource?.key === item.key ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'}`}>{item.label}</button>)}
               </div>
             </aside>
 
             <section className="min-w-0 rounded-2xl border border-stone-200 bg-white shadow-sm">
               <div className="border-b border-stone-200 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2"><h2 className="text-lg font-bold text-stone-900">{resource?.label}</h2><span className="rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-bold text-green-700">LIVE API</span></div>
-                    <p className="mt-1 font-mono text-xs text-stone-400">GET {resource?.endpoint}</p>
-                  </div>
+                  <div><div className="flex items-center gap-2"><h2 className="text-lg font-bold text-stone-900">{resource?.label ?? 'Workspace'}</h2>{resource && <span className="rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-bold text-green-700">LIVE API</span>}</div>{resource && <p className="mt-1 font-mono text-xs text-stone-400">GET {resource.endpoint}</p>}</div>
                   <div className="flex gap-2">
                     {resource?.createEndpoint && resource.createPermission && can(resource.createPermission) && <button onClick={() => setShowCreate(true)} className="rounded-xl bg-amber-700 px-4 py-2 text-sm font-bold text-white hover:bg-amber-800">+ Create</button>}
                     <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cari..." className="w-40 rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-amber-600" />
@@ -278,45 +262,12 @@ export default function EnterpriseOperations() {
                 </div>
               </div>
 
-              {showCreate && resource?.fields && (
-                <div className="border-b border-stone-200 bg-stone-50 p-5">
-                  <div className="mb-3 flex items-center justify-between"><h3 className="font-bold">Create {resource.label}</h3><button onClick={() => setShowCreate(false)} className="text-sm font-semibold text-stone-500">Tutup</button></div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {resource.fields.map(field => (
-                      <label key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
-                        <span className="mb-1 block text-xs font-bold text-stone-500">{field.label}{field.required ? ' *' : ''}</span>
-                        {field.type === 'textarea' ? <textarea value={form[field.name] ?? ''} onChange={e => setForm(v => ({ ...v, [field.name]: e.target.value }))} placeholder={field.placeholder} rows={4} className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-amber-600" />
-                          : field.type === 'select' ? <select value={form[field.name] ?? ''} onChange={e => setForm(v => ({ ...v, [field.name]: e.target.value }))} className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm"><option value="">Pilih...</option>{field.options?.map(option => <option key={option} value={option}>{option}</option>)}</select>
-                          : <input type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'} value={form[field.name] ?? ''} onChange={e => setForm(v => ({ ...v, [field.name]: e.target.value }))} placeholder={field.placeholder} className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-amber-600" />}
-                      </label>
-                    ))}
-                  </div>
-                  <div className="mt-4 flex justify-end"><button onClick={() => void submitCreate()} className="rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-bold text-white">Simpan</button></div>
-                </div>
-              )}
+              {showCreate && resource?.fields && <div className="border-b border-stone-200 bg-stone-50 p-5"><div className="mb-3 flex items-center justify-between"><h3 className="font-bold">Create {resource.label}</h3><button onClick={() => setShowCreate(false)} className="text-sm font-semibold text-stone-500">Tutup</button></div><div className="grid gap-3 md:grid-cols-2">{resource.fields.map(field => <label key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}><span className="mb-1 block text-xs font-bold text-stone-500">{field.label}{field.required ? ' *' : ''}</span>{field.type === 'textarea' ? <textarea value={form[field.name] ?? ''} onChange={e => setForm(v => ({ ...v, [field.name]: e.target.value }))} placeholder={field.placeholder} rows={4} className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-amber-600" /> : field.type === 'select' ? <select value={form[field.name] ?? ''} onChange={e => setForm(v => ({ ...v, [field.name]: e.target.value }))} className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm"><option value="">Pilih...</option>{field.options?.map(option => <option key={option} value={option}>{option}</option>)}</select> : <input type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'} value={form[field.name] ?? ''} onChange={e => setForm(v => ({ ...v, [field.name]: e.target.value }))} placeholder={field.placeholder} className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-amber-600" />}</label>)}</div><div className="mt-4 flex justify-end"><button onClick={() => void submitCreate()} className="rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-bold text-white">Simpan</button></div></div>}
 
               {loading && <div className="p-10 text-center text-sm text-stone-500">Memuat data...</div>}
               {!loading && error && <div className="m-5 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div>}
               {!loading && !error && filteredRows.length === 0 && <div className="p-10 text-center"><div className="text-3xl">📭</div><p className="mt-2 font-semibold text-stone-700">Belum ada data</p><p className="text-sm text-stone-500">Tidak ada record pada scope organisasi aktif atau filter pencarian.</p></div>}
-
-              {!loading && !error && filteredRows.length > 0 && (
-                <div className="divide-y divide-stone-100">
-                  {filteredRows.slice(0, 100).map((row, index) => {
-                    const actions = (resource?.actions ?? []).filter(action => can(action.permission));
-                    return (
-                      <article key={`${getRecordId(row) ?? 'row'}-${index}`} className="p-5 hover:bg-stone-50">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div><div className="font-semibold text-stone-900">{titleFromRow(row)}</div><div className="mt-1 text-xs text-stone-400">ID: {getRecordId(row) ?? '-'}</div></div>
-                          {actions.length > 0 && <div className="flex flex-wrap gap-2">{actions.map(action => <button key={action.label} onClick={() => void runAction(row, action)} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-100">{action.label}</button>)}</div>}
-                        </div>
-                        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                          {Object.entries(row).slice(0, 12).map(([key, value]) => <div key={key} className="rounded-xl bg-stone-50 px-3 py-2"><div className="text-[10px] font-bold uppercase tracking-wide text-stone-400">{key}</div><div className="mt-1 break-words text-xs text-stone-700">{typeof value === 'object' ? JSON.stringify(value) : String(value ?? '-')}</div></div>)}
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
+              {!loading && !error && filteredRows.length > 0 && <div className="divide-y divide-stone-100">{filteredRows.slice(0, 100).map((row, index) => { const actions = (resource?.actions ?? []).filter(action => can(action.permission)); return <article key={`${getRecordId(row) ?? 'row'}-${index}`} className="p-5 hover:bg-stone-50"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-semibold text-stone-900">{titleFromRow(row)}</div><div className="mt-1 text-xs text-stone-400">ID: {getRecordId(row) ?? '-'}</div></div>{actions.length > 0 && <div className="flex flex-wrap gap-2">{actions.map(action => <button key={action.label} onClick={() => void runAction(row, action)} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-100">{action.label}</button>)}</div>}</div><div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(row).slice(0, 12).map(([key, value]) => <div key={key} className="rounded-xl bg-stone-50 px-3 py-2"><div className="text-[10px] font-bold uppercase tracking-wide text-stone-400">{key}</div><div className="mt-1 break-words text-xs text-stone-700">{typeof value === 'object' ? JSON.stringify(value) : String(value ?? '-')}</div></div>)}</div></article>; })}</div>}
             </section>
           </div>
         </main>
