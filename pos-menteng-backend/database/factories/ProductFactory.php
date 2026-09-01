@@ -19,8 +19,9 @@ class ProductFactory extends Factory
         $category = Category::query()->first();
 
         if (! $category) {
-            $category = Category::create([
-                'name' => 'Factory Category ' . Str::upper(Str::random(6)),
+            $category = Category::query()->create([
+                'name' => 'Factory Category ' . Str::upper(Str::random(8)),
+                'image' => null,
             ]);
         }
 
