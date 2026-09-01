@@ -285,6 +285,7 @@ class ErpMasterSeeder extends Seeder
                         'product_id'=>$productModel->id,
                         'quantity'=>$product['stock'],
                         'reserved_quantity'=>0,
+                        'available_quantity'=>$product['stock'],
                         'average_cost'=>round($product['price']*0.40,4),
                         'last_cost'=>round($product['price']*0.40,4),
                         'created_at'=>now(),
