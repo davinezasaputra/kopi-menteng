@@ -92,6 +92,7 @@ Route::middleware('request.id')->group(function () {
             Route::post('/purchasing/orders', [PurchasingController::class, 'storePurchaseOrder'])->middleware('permission:purchasing.order.create');
             Route::post('/purchasing/orders/{order}/submit', [PurchasingController::class, 'submitPurchaseOrder'])->middleware('permission:purchasing.order.submit');
             Route::post('/purchasing/orders/{order}/approve', [PurchasingController::class, 'approvePurchaseOrder'])->middleware('permission:purchasing.order.approve');
+            Route::post('/purchasing/orders/{order}/reject', [PurchasingController::class, 'rejectPurchaseOrder'])->middleware('permission:purchasing.order.approve');
             Route::post('/purchasing/orders/{order}/cancel', [PurchasingController::class, 'cancelPurchaseOrder'])->middleware('permission:purchasing.order.cancel');
             Route::get('/purchasing/goods-receipts', [PurchasingController::class, 'goodsReceipts'])->middleware('permission:purchasing.receipt.view');
             Route::post('/purchasing/goods-receipts', [PurchasingController::class, 'storeGoodsReceipt'])->middleware('permission:purchasing.receipt.create');
@@ -108,6 +109,8 @@ Route::middleware('request.id')->group(function () {
             Route::get('/purchasing/credit-notes', [PurchasingController::class, 'supplierCreditNotes'])->middleware('permission:purchasing.credit_note.view');
             Route::post('/purchasing/credit-notes', [PurchasingController::class, 'storeSupplierCreditNote'])->middleware('permission:purchasing.credit_note.create');
             Route::get('/purchasing/budgets', [PurchasingController::class, 'purchasingBudget'])->middleware('permission:purchasing.budget.view');
+            Route::get('/purchasing/approval-matrix', [PurchasingController::class, 'approvalMatrix'])->middleware('permission:purchasing.approval_matrix.view');
+            Route::post('/purchasing/approval-matrix', [PurchasingController::class, 'storeApprovalMatrix'])->middleware('permission:purchasing.approval_matrix.create');
             Route::post('/purchasing/budgets', [PurchasingController::class, 'storePurchasingBudget'])->middleware('permission:purchasing.budget.create');
             Route::get('/erp/accounting/accounts', [ErpAccountingController::class, 'accounts'])->middleware('permission:accounting.erp.account.view');
             Route::post('/erp/accounting/accounts', [ErpAccountingController::class, 'storeAccount'])->middleware('permission:accounting.erp.account.create');
