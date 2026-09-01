@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
 
-type Context = { tenant_id: number | null; company_id: number | null; branch_id: number | null; role?: string; permissions?: string[] };
+type Context = { tenant_id: number | null; company_id: number | null; branch_id: number | null; location_id: number | null; location_type?: string | null; role?: string; permissions?: string[] };
 
 export function useFoundationContext() {
   const hasToken = Boolean(localStorage.getItem('token'));
@@ -32,6 +32,8 @@ export function useFoundationContext() {
           tenant_id: next?.tenant_id ?? apiContext?.tenant_id ?? null,
           company_id: next?.company_id ?? apiContext?.company_id ?? null,
           branch_id: next?.branch_id ?? apiContext?.branch_id ?? null,
+          location_id: next?.location_id ?? apiContext?.location_id ?? null,
+          location_type: next?.location_type ?? apiContext?.location_type ?? null,
           role,
           permissions,
         };
@@ -42,6 +44,8 @@ export function useFoundationContext() {
           tenant_id: normalized.tenant_id,
           company_id: normalized.company_id,
           branch_id: normalized.branch_id,
+          location_id: normalized.location_id,
+          location_type: normalized.location_type,
         }));
         localStorage.setItem('erp_role', String(normalized.role || ''));
         localStorage.setItem('permissions', JSON.stringify(permissions));
