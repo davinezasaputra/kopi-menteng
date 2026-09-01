@@ -9,6 +9,8 @@ use App\Domain\Purchasing\Models\PurchaseOrder;
 use App\Domain\Purchasing\Models\GoodsReceipt;
 use App\Domain\Purchasing\Models\SupplierInvoice;
 use App\Domain\Purchasing\Models\SupplierPayment;
+use App\Domain\Purchasing\Models\SupplierReturn;
+use App\Domain\Purchasing\Services\SupplierReturnService;
 use App\Domain\Purchasing\Services\AccountsPayableService;
 use App\Domain\Purchasing\Services\GoodsReceiptService;
 use App\Domain\Purchasing\Services\PurchaseOrderService;
@@ -26,6 +28,7 @@ class PurchasingController extends Controller
         private readonly PurchaseOrderService $orders,
         private readonly GoodsReceiptService $goodsReceipts,
         private readonly AccountsPayableService $accountsPayable,
+        private readonly SupplierReturnService $supplierReturns,
     ) {}
 
     public function suppliers(): JsonResponse
@@ -290,6 +293,48 @@ class PurchasingController extends Controller
         );
 
         return response()->json(['status'=>'success','message'=>'Supplier payment recorded.','data'=>$payment],201);
+    }
+
+    public function supplierReturns(): JsonResponse
+    {
+        $rows = SupplierReturn::query()
+            ->with(['supplier','warehouse','order','goodsReceipt','items.product'])
+            ->where('tenant_id',$this->context->tenantId())
+            ->where('company_id',$this->context->companyId())
+            ->where('branch_id',$this->context->branchId())
+            ->latest('id')
+            ->paginate(50);
+
+        return response()->json(['status'=>'success','data'=>$rows]);
+    }
+
+    public function storeSupplierReturn(Request $request): JsonResponse
+    {
+        $data=$request->validate([
+            'purchase_order_id'=>['required','integer','exists:purchase_orders,id'],
+            'goods_receipt_id'=>['required','integer','exists:goods_receipts,id'],
+            'warehouse_id'=>['required','integer','exists:warehouses,id'],
+            'reason'=>['nullable','string'],
+            'notes'=>['nullable','string'],
+            'items'=>['required','array','min:1'],
+            'items.*.goods_receipt_item_id'=>['required','integer','exists:goods_receipt_items,id'],
+            'items.*.quantity'=>['required','numeric','gt:0'],
+        ]);
+
+        $return=$this->supplierReturns->createAndPost(
+            PurchaseOrder::findOrFail($data['purchase_order_id']),
+            GoodsReceipt::findOrFail($data['goods_receipt_id']),
+            Warehouse::findOrFail($data['warehouse_id']),
+            $data['items'],
+            $data['reason'] ?? null,
+            $data['notes'] ?? null,
+        );
+
+        return response()->json([
+            'status'=>'success',
+            'message'=>'Supplier return posted.',
+            'data'=>$return,
+        ],201);
     }
 
     public function cancelPurchaseOrder(int $order): JsonResponse
