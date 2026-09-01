@@ -37,58 +37,73 @@ return new class extends Migration
                 }
             }
 
-            $updates = [];
-            if (in_array('tenant_id', $columns, true) && Schema::hasColumn($table, 'tenant_id')) $updates['tenant_id'] = $tenantId;
-            if (in_array('company_id', $columns, true) && Schema::hasColumn($table, 'company_id')) $updates['company_id'] = $companyId;
-            if (in_array('branch_id', $columns, true) && Schema::hasColumn($table, 'branch_id')) $updates['branch_id'] = $branchId;
+            if (Schema::hasColumn($table, 'tenant_id')) {
+                DB::table($table)
+                    ->whereNull('tenant_id')
+                    ->update(['tenant_id' => $tenantId]);
+            }
 
-            if ($updates) {
-                DB::table($table)->whereNull('tenant_id')->update($updates);
+            if (Schema::hasColumn($table, 'company_id')) {
+                DB::table($table)
+                    ->whereNull('company_id')
+                    ->update(['company_id' => $companyId]);
+            }
+
+            if (Schema::hasColumn($table, 'branch_id')) {
+                DB::table($table)
+                    ->whereNull('branch_id')
+                    ->update(['branch_id' => $branchId]);
             }
         }
 
+        // PostgreSQL-safe relationship backfills. Do not rely on Query Builder
+        // UPDATE ... JOIN aliases in SET clauses; PostgreSQL rejects those.
         if (Schema::hasTable('attendances') && Schema::hasTable('employees')) {
-            DB::table('attendances as a')
-                ->join('employees as e', 'e.id', '=', 'a.employee_id')
-                ->whereNotNull('e.tenant_id')
-                ->update([
-                    'a.tenant_id' => DB::raw('e.tenant_id'),
-                    'a.company_id' => DB::raw('e.company_id'),
-                    'a.branch_id' => DB::raw('e.branch_id'),
-                ]);
+            DB::statement('
+                UPDATE attendances AS a
+                SET tenant_id = e.tenant_id,
+                    company_id = e.company_id,
+                    branch_id = e.branch_id
+                FROM employees AS e
+                WHERE e.id = a.employee_id
+                  AND e.tenant_id IS NOT NULL
+            ');
         }
 
         if (Schema::hasTable('leaves') && Schema::hasTable('employees')) {
-            DB::table('leaves as l')
-                ->join('employees as e', 'e.id', '=', 'l.employee_id')
-                ->whereNotNull('e.tenant_id')
-                ->update([
-                    'l.tenant_id' => DB::raw('e.tenant_id'),
-                    'l.company_id' => DB::raw('e.company_id'),
-                    'l.branch_id' => DB::raw('e.branch_id'),
-                ]);
+            DB::statement('
+                UPDATE leaves AS l
+                SET tenant_id = e.tenant_id,
+                    company_id = e.company_id,
+                    branch_id = e.branch_id
+                FROM employees AS e
+                WHERE e.id = l.employee_id
+                  AND e.tenant_id IS NOT NULL
+            ');
         }
 
         if (Schema::hasTable('payrolls') && Schema::hasTable('employees')) {
-            DB::table('payrolls as p')
-                ->join('employees as e', 'e.id', '=', 'p.employee_id')
-                ->whereNotNull('e.tenant_id')
-                ->update([
-                    'p.tenant_id' => DB::raw('e.tenant_id'),
-                    'p.company_id' => DB::raw('e.company_id'),
-                    'p.branch_id' => DB::raw('e.branch_id'),
-                ]);
+            DB::statement('
+                UPDATE payrolls AS p
+                SET tenant_id = e.tenant_id,
+                    company_id = e.company_id,
+                    branch_id = e.branch_id
+                FROM employees AS e
+                WHERE e.id = p.employee_id
+                  AND e.tenant_id IS NOT NULL
+            ');
         }
 
         if (Schema::hasTable('restock_histories') && Schema::hasTable('raw_materials')) {
-            DB::table('restock_histories as rh')
-                ->join('raw_materials as rm', 'rm.id', '=', 'rh.raw_material_id')
-                ->whereNotNull('rm.tenant_id')
-                ->update([
-                    'rh.tenant_id' => DB::raw('rm.tenant_id'),
-                    'rh.company_id' => DB::raw('rm.company_id'),
-                    'rh.branch_id' => DB::raw('rm.branch_id'),
-                ]);
+            DB::statement('
+                UPDATE restock_histories AS rh
+                SET tenant_id = rm.tenant_id,
+                    company_id = rm.company_id,
+                    branch_id = rm.branch_id
+                FROM raw_materials AS rm
+                WHERE rm.id = rh.raw_material_id
+                  AND rm.tenant_id IS NOT NULL
+            ');
         }
     }
 
