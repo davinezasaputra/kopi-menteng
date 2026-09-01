@@ -44,13 +44,19 @@ class AuthController extends Controller
 
     public function loginPin(Request $request)
     {
-        $request->validate(['pin'=>['required','digits:6'],'user_id'=>['required','integer','exists:users,id']]);
-        $user=User::findOrFail($request->integer('user_id')); $key='pin-login:'.$user->id.'|'.$request->ip();
-        if(!$this->pinService->verify((string)$request->pin,$user,$key)){
-            if(RateLimiter::tooManyAttempts($key,5)) return response()->json(['status'=>'error','message'=>'Too many PIN attempts. Please try again later.'],429);
+        $request->validate(['pin'=>['required','digits:6'],'user_id'=>['nullable','integer','exists:users,id']]);
+        $pin=(string)$request->pin;
+        $clientKey='pin-login:'.($request->user_id ? $request->user_id : hash('sha256',$request->ip())).'|'.$request->ip();
+        if(RateLimiter::tooManyAttempts($clientKey,5)) return response()->json(['status'=>'error','message'=>'Too many PIN attempts. Please try again later.'],429);
+
+        $user=$request->filled('user_id') ? User::findOrFail($request->integer('user_id')) : $this->pinService->findByPin($pin);
+        if(!$user || !$this->pinService->verify($pin,$user,$clientKey)){
+            RateLimiter::hit($clientKey,60);
+            if($user && $this->hydrateContext($user)) $this->auditIfScoped('failed_login','auth.pin',$user,$request,['reason'=>'invalid_pin']);
             return response()->json(['status'=>'error','message'=>'PIN salah'],401);
         }
-        $this->hydrateContext($user); $token=$user->createToken('auth_token',['pos'])->plainTextToken;
+        $this->hydrateContext($user);
+        $token=$user->createToken('auth_token',['pos'])->plainTextToken;
         $this->auditIfScoped('login','auth.pin',$user,$request,['method'=>'pin']);
         return response()->json(['status'=>'success','message'=>'Login Berhasil Halo','data'=>['user'=>$user,'nama'=>$user->name,'token'=>$token]],200);
     }
