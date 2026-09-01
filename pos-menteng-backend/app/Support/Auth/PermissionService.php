@@ -11,6 +11,14 @@ class PermissionService
 
     public function hasPermission(User $user, string $permission): bool
     {
+        // Developer is the platform/application superuser (God Mode).
+        // Tenant membership is still required by the tenant middleware when
+        // accessing tenant-scoped endpoints, but no tenant RBAC permission
+        // should block the developer account.
+        if ($user->role === 'developer') {
+            return true;
+        }
+
         $membership = $this->context->membership();
         if (! $membership || (int) $membership->user_id !== (int) $user->getAuthIdentifier()) {
             return false;
