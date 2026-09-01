@@ -22,6 +22,7 @@ import Employees from './pages/Employees';
 import FoundationAdmin from './pages/admin/FoundationAdmin';
 import EnterpriseOperations from './pages/EnterpriseOperations';
 import GuidedOperations from './pages/GuidedOperations';
+import PurchaseOrders from './pages/PurchaseOrders';
 
 const AxiosInterceptor = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
@@ -95,6 +96,7 @@ function App() {
             <Route path="/admin/foundation" element={<ProtectedRoute requiredPermission="rbac.role.view"><FoundationAdmin /></ProtectedRoute>} />
             <Route path="/erp/operations" element={<ProtectedRoute requiredAnyPermission={['purchasing.supplier.create', 'purchasing.order.create', 'sales.order.create', 'accounting.report.view', 'accounting.erp_journal.create']}><GuidedOperations /></ProtectedRoute>} />
             <Route path="/erp/operations/raw" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'sales.order.view', 'accounting.report.view']}><EnterpriseOperations /></ProtectedRoute>} />
+            <Route path="/purchasing/orders" element={<ProtectedRoute requiredPermission="purchasing.order.create"><PurchaseOrders /></ProtectedRoute>} />
           </Routes>
         </AxiosInterceptor>
       </FoundationBootstrap>
