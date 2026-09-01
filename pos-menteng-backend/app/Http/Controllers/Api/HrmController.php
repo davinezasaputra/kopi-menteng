@@ -3,21 +3,25 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Audit\Services\AuditService;
+use App\Domain\Hrm\Services\PayrollAutomationService;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\OperationalExpense;
 use App\Models\Payroll;
+use App\Models\PayrollNotification;
 use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class HrmController extends Controller
 {
     public function __construct(
         private readonly TenantContext $context,
         private readonly AuditService $audit,
+        private readonly PayrollAutomationService $payrollAutomation,
     ) {
     }
 
@@ -97,7 +101,7 @@ class HrmController extends Controller
     {
         $validated = $request->validate([
             'employee_id' => 'required|uuid',
-            'period' => 'required|string|max:20',
+            'period' => ['required', 'date_format:Y-m'],
             'base_salary' => 'required|numeric|min:0',
             'allowance' => 'nullable|numeric|min:0',
             'deduction' => 'nullable|numeric|min:0',
@@ -117,12 +121,97 @@ class HrmController extends Controller
             'base_salary' => $validated['base_salary'],
             'allowance' => $allowance,
             'deduction' => $deduction,
-            'total_salary' => (float) $validated['base_salary'] + $allowance - $deduction,
+            'total_salary' => max(0, (float) $validated['base_salary'] + $allowance - $deduction),
         ];
 
         $payroll = Payroll::create($data);
         $this->audit->record('created', 'hrm.payroll', $payroll, null, $payroll->toArray());
         return response()->json(['status' => 'success', 'message' => 'Slip gaji berhasil diterbitkan.', 'data' => $payroll], 201);
+    }
+
+    public function getPayrollAutomationConfig()
+    {
+        return response()->json(['status' => 'success', 'data' => $this->payrollAutomation->getConfig()]);
+    }
+
+    public function updatePayrollAutomationConfig(Request $request)
+    {
+        $validated = $request->validate([
+            'enable_auto_fill' => 'sometimes|boolean',
+            'enable_whatsapp_notification' => 'sometimes|boolean',
+            'whatsapp_recipient_employee' => 'sometimes|boolean',
+            'whatsapp_recipient_manager' => 'sometimes|boolean',
+            'manager_phone' => 'nullable|string|max:32',
+            'notification_timing' => ['sometimes', Rule::in(['immediate', 'next_day', 'after_approval'])],
+            'message_template' => 'nullable|string|max:2000',
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Konfigurasi automation payroll disimpan.',
+            'data' => $this->payrollAutomation->updateConfig($validated),
+        ]);
+    }
+
+    public function generatePayrollAuto(string $id)
+    {
+        $payroll = $this->payrollScopedQuery()->findOrFail($id);
+        if ($payroll->is_paid) {
+            return response()->json(['status' => 'error', 'message' => 'Payroll yang sudah dibayar tidak dapat di-auto-fill ulang.'], 409);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Payroll berhasil diisi otomatis dari data karyawan dan attendance.',
+            'data' => $this->payrollAutomation->autoFillPayroll($payroll),
+            'payroll' => $payroll->fresh()->load('employee:id,name,position'),
+        ]);
+    }
+
+    public function sendPayrollWhatsApp(string $id)
+    {
+        $payroll = $this->payrollScopedQuery()->with('employee')->findOrFail($id);
+        if (! $payroll->is_paid) {
+            return response()->json(['status' => 'error', 'message' => 'Slip gaji harus berstatus dibayar sebelum dikirim via WhatsApp.'], 409);
+        }
+
+        $result = $this->payrollAutomation->handlePaidPayroll($payroll);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Pengiriman payroll diproses.',
+            'data' => $result,
+        ]);
+    }
+
+    public function payrollNotifications(Request $request)
+    {
+        $notifications = PayrollNotification::with(['payroll.employee:id,name,position'])
+            ->whereHas('payroll', function ($query) {
+                $query->where('tenant_id', $this->context->tenantId())
+                    ->where('company_id', $this->context->companyId())
+                    ->where('branch_id', $this->context->branchId());
+            })
+            ->orderByDesc('id')
+            ->paginate(min((int) $request->integer('per_page', 50), 100));
+
+        return response()->json(['status' => 'success', 'data' => $notifications]);
+    }
+
+    public function payrollNotificationStatus(string $id)
+    {
+        $notification = PayrollNotification::with('payroll.employee')
+            ->whereKey($id)
+            ->whereHas('payroll', function ($query) {
+                $query->where('tenant_id', $this->context->tenantId())
+                    ->where('company_id', $this->context->companyId())
+                    ->where('branch_id', $this->context->branchId());
+            })
+            ->firstOrFail();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $this->payrollAutomation->syncNotificationStatus($notification),
+        ]);
     }
 
     public function paySalary(string $id)
@@ -146,6 +235,26 @@ class HrmController extends Controller
             $this->audit->record('paid', 'hrm.payroll', $payroll, $old, $payroll->fresh()->toArray());
         });
 
-        return response()->json(['status' => 'success', 'message' => 'Gaji berhasil dibayar dan pengeluaran tercatat.']);
+        $automation = null;
+        try {
+            $automation = $this->payrollAutomation->handlePaidPayroll($payroll->fresh());
+        } catch (\Throwable $e) {
+            $this->audit->record('payroll_notification_dispatch_failed', 'hrm.payroll', $payroll, null, ['error' => $e->getMessage()]);
+            $automation = ['status' => 'failed', 'message' => 'Pembayaran sukses, tetapi automation WhatsApp/PDF gagal diproses.', 'error' => $e->getMessage()];
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Gaji berhasil dibayar dan pengeluaran tercatat.',
+            'automation' => $automation,
+        ]);
+    }
+
+    private function payrollScopedQuery()
+    {
+        return Payroll::query()
+            ->where('tenant_id', $this->context->tenantId())
+            ->where('company_id', $this->context->companyId())
+            ->where('branch_id', $this->context->branchId());
     }
 }
