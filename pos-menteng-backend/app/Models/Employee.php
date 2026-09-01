@@ -6,6 +6,7 @@ use App\Domain\Organization\Models\Location;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Employee extends Model
 {
@@ -27,6 +28,15 @@ class Employee extends Model
         'base_sallary',
         'status',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Employee $employee): void {
+            if (! $employee->getKey()) {
+                $employee->setAttribute($employee->getKeyName(), (string) Str::uuid());
+            }
+        });
+    }
 
     public function location(): BelongsTo { return $this->belongsTo(Location::class); }
     public function payrolls(): HasMany { return $this->hasMany(Payroll::class); }
