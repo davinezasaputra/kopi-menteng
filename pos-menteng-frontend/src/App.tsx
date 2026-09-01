@@ -25,7 +25,7 @@ import GuidedOperations from './pages/GuidedOperations';
 import PurchasingWorkspaceV2 from './pages/PurchasingWorkspaceV2';
 import OperationsCenter from './pages/OperationsCenter';
 import ReceiptTemplateSettings from './pages/ReceiptTemplateSettings';
-import DeveloperConsole from './pages/DeveloperConsole';
+import DeveloperConsole from './pages/DeveloperConsoleSaas';
 
 const AxiosInterceptor = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
