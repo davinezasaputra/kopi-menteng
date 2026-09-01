@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Audit\Services\AuditService;
 use App\Domain\Inventory\Services\InventoryService;
 use App\Domain\Organization\Models\Warehouse;
 use App\Http\Controllers\Controller;
@@ -22,20 +23,18 @@ class OrderController extends Controller
     public function __construct(
         private readonly TenantContext $context,
         private readonly InventoryService $inventory,
-    ) {
-    }
+        private readonly AuditService $audit,
+    ) {}
 
     public function index(Request $request)
     {
-        $today = Carbon::today();
-
         $orders = Order::with('items.product')
             ->where('tenant_id', $this->context->tenantId())
             ->where('company_id', $this->context->companyId())
             ->where('branch_id', $this->context->branchId())
-            ->whereDate('created_at', $today)
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->whereDate('created_at', $request->date('date', Carbon::today()))
+            ->orderByDesc('created_at')
+            ->paginate(min((int) $request->integer('per_page', 50), 100));
 
         return response()->json(['status' => 'success', 'data' => $orders]);
     }
@@ -55,40 +54,23 @@ class OrderController extends Controller
             ->where('status', 'open')
             ->first();
 
-        if (! $activeShift) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Anda harus membuka shift terlebih dahulu.',
-            ], 403);
-        }
-
-        if (! $activeShift->warehouse_id) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Shift belum terhubung ke warehouse.',
-            ], 422);
-        }
+        if (! $activeShift) return response()->json(['status' => 'error', 'message' => 'Anda harus membuka shift terlebih dahulu.'], 403);
+        if (! $activeShift->warehouse_id) return response()->json(['status' => 'error', 'message' => 'Shift belum terhubung ke warehouse.'], 422);
 
         $warehouse = Warehouse::query()
             ->whereKey($activeShift->warehouse_id)
             ->where('branch_id', $branchId)
             ->first();
-
-        if (! $warehouse) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Warehouse shift tidak valid untuk branch aktif.',
-            ], 422);
-        }
+        if (! $warehouse) return response()->json(['status' => 'error', 'message' => 'Warehouse shift tidak valid untuk branch aktif.'], 422);
 
         $validated = $request->validate([
             'payment_method' => 'required|in:cash,qris,bank_transfer,unpaid',
             'order_type' => 'required|in:dine_in,takeaway',
             'customer_id' => 'nullable|exists:customers,id',
-            'customer_name' => 'nullable|string|max:50',
+            'customer_name' => 'nullable|string|max:100',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.quantity' => 'required|integer|min:1|max:1000',
         ]);
 
         try {
@@ -101,80 +83,56 @@ class OrderController extends Controller
             foreach ($validated['items'] as $item) {
                 $product = Product::query()
                     ->where('tenant_id', $tenantId)
+                    ->where('is_active', true)
                     ->lockForUpdate()
-                    ->with('rawMaterials')
+                    ->with(['rawMaterials' => function ($query) use ($tenantId, $companyId, $branchId) {
+                        $query->where('raw_materials.tenant_id', $tenantId)
+                            ->where('raw_materials.company_id', $companyId)
+                            ->where('raw_materials.branch_id', $branchId);
+                    }])
                     ->findOrFail($item['product_id']);
 
-                $itemSubtotal = (float) $product->price * $item['quantity'];
+                $qty = (int) $item['quantity'];
+                $itemSubtotal = (float) $product->price * $qty;
                 $subtotal += $itemSubtotal;
                 $itemCogs = 0;
 
                 foreach ($product->rawMaterials as $material) {
-                    $totalMaterialNeeded = $material->pivot->quantity_needed * $item['quantity'];
-
-                    if ($material->stock < $totalMaterialNeeded) {
-                        throw new \Exception("Bahan baku '{$material->name}' habis!");
+                    $needed = (float) $material->pivot->quantity_needed * $qty;
+                    if ((float) $material->stock < $needed) {
+                        throw new \RuntimeException("Bahan baku '{$material->name}' tidak mencukupi. Available: {$material->stock}.");
                     }
-
-                    $material->decrement('stock', $totalMaterialNeeded);
-
-                    if ($material->fresh()->stock <= $material->min_stock_level) {
-                        $material->update(['is_requested' => true]);
-                    }
-
-                    $itemCogs += ($totalMaterialNeeded * $material->price_per_unit);
+                    $material->decrement('stock', $needed);
+                    $materialAfter = $material->fresh();
+                    if ((float) $materialAfter->stock <= (float) $materialAfter->min_stock_level) $materialAfter->update(['is_requested' => true]);
+                    $itemCogs += $needed * (float) $material->price_per_unit;
                 }
 
                 $totalCogs += $itemCogs;
-
-                $processedItems[] = [
-                    'product_id' => $product->id,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $product->price,
-                    'subtotal' => $itemSubtotal,
-                ];
+                $processedItems[] = ['product_id' => $product->id, 'quantity' => $qty, 'unit_price' => $product->price, 'subtotal' => $itemSubtotal];
             }
 
-            $discount = 0;
             $customer = null;
-
+            $discount = 0;
             if (! empty($validated['customer_id'])) {
-                $customer = Customer::query()
-                    ->where('tenant_id', $tenantId)
-                    ->whereKey($validated['customer_id'])
-                    ->first();
-
-                if ($customer) {
-                    if ($customer->tier === 'vip') {
-                        $discount = $subtotal * 0.10;
-                    } elseif ($customer->tier === 'gold') {
-                        $discount = $subtotal * 0.05;
-                    }
-                }
+                $customer = Customer::query()->where('tenant_id', $tenantId)->whereKey($validated['customer_id'])->first();
+                if (! $customer) return response()->json(['status' => 'error', 'message' => 'Customer tidak berada pada tenant aktif.'], 422);
+                $discount = match ($customer->tier) {
+                    'vip' => $subtotal * 0.10,
+                    'gold' => $subtotal * 0.05,
+                    default => 0,
+                };
             }
 
-            $total = $subtotal - $discount;
+            $total = max(0, $subtotal - $discount);
             $basePrice = $total / 1.11;
             $tax = $total - $basePrice;
             $netProfit = $basePrice - $totalCogs;
             $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
 
-            // Inventory is part of the same DB transaction as the sale.
-            // If any product cannot be issued from the shift warehouse,
-            // the complete checkout is rolled back.
             foreach ($processedItems as $processedItem) {
-                $product = Product::query()
-                    ->where('tenant_id', $tenantId)
-                    ->findOrFail($processedItem['product_id']);
-
-                $this->inventory->issue(
-                    $warehouse,
-                    $product,
-                    (float) $processedItem['quantity'],
-                    'pos_order',
-                    $invoiceNumber,
-                    'POS sale stock issue'
-                );
+                $product = Product::query()->where('tenant_id', $tenantId)->findOrFail($processedItem['product_id']);
+                $this->inventory->issue($warehouse, $product, (float) $processedItem['quantity'], 'pos_order', $invoiceNumber, 'POS sale stock issue');
             }
 
             $order = Order::create([
@@ -197,66 +155,43 @@ class OrderController extends Controller
                 'status' => $validated['payment_method'] === 'cash' ? 'paid' : 'pending',
             ]);
 
-            if ($customer && $validated['payment_method'] === 'cash') {
-                $earnedPoints = floor($total / 10000);
-                $customer->increment('points', $earnedPoints);
-            }
-
-            foreach ($processedItems as $processedItem) {
-                $order->items()->create($processedItem);
-            }
+            if ($customer && $validated['payment_method'] === 'cash') $customer->increment('points', (int) floor($total / 10000));
+            foreach ($processedItems as $processedItem) $order->items()->create($processedItem);
 
             $paymentUrl = null;
-
-            if ($validated['payment_method'] === 'cash') {
-                $activeShift->increment('expected_ending_cash', $total);
-            } else {
+            if ($validated['payment_method'] !== 'cash') {
                 Config::$serverKey = config('midtrans.server_key');
                 Config::$isProduction = config('midtrans.is_production');
                 Config::$isSanitized = true;
                 Config::$is3ds = true;
-
-                $midtransParams = [
-                    'transaction_details' => [
-                        'order_id' => $order->invoice_number,
-                        'gross_amount' => (int) $order->total,
-                    ],
-                    'customer_details' => [
-                        'first_name' => 'Pelanggan',
-                        'last_name' => 'Cafe Menteng',
-                    ],
-                ];
-
-                $snapToken = Snap::getSnapToken($midtransParams);
+                $snapToken = Snap::getSnapToken([
+                    'transaction_details' => ['order_id' => $order->invoice_number, 'gross_amount' => (int) $order->total],
+                    'customer_details' => ['first_name' => 'Pelanggan', 'last_name' => 'Cafe Menteng'],
+                ]);
                 $paymentUrl = 'https://app.sandbox.midtrans.com/snap/v3/redirection/' . $snapToken;
+            } else {
+                $activeShift->increment('expected_ending_cash', $total);
             }
 
             DB::commit();
             $order->load('items.product');
+            $this->audit->record('created', 'pos.order', $order, null, $order->toArray());
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Transaksi berhasil diproses',
-                'payment_url' => $paymentUrl,
-                'data' => $order,
-            ], 201);
-        } catch (\Exception $e) {
+            return response()->json(['status' => 'success', 'message' => 'Transaksi berhasil diproses', 'payment_url' => $paymentUrl, 'data' => $order], 201);
+        } catch (\Throwable $e) {
             DB::rollBack();
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Transaksi gagal: ' . $e->getMessage(),
-            ], 500);
+            return response()->json(['status' => 'error', 'message' => 'Transaksi gagal: ' . $e->getMessage()], 500);
         }
     }
 
     public function history(Request $request)
     {
-        $orders = Order::with(['items.product'])
+        $orders = Order::with('items.product')
             ->where('tenant_id', $this->context->tenantId())
             ->where('company_id', $this->context->companyId())
             ->where('branch_id', $this->context->branchId())
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->orderByDesc('created_at')
+            ->paginate(min((int) $request->integer('per_page', 50), 100));
 
         return response()->json(['status' => 'success', 'data' => $orders]);
     }
