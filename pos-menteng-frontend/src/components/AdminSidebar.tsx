@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { can, canAny } from '../core/auth/permissions';
 
 export type AdminSidebarProps = {
-  activePage?: 'users' | 'dashboard' | 'pos' | 'inventory' | 'raw-materials' | 'history' | 'accounting' | 'customers' | 'employees' | 'hrm' | 'foundation' | 'operations' | 'inventory-operations' | 'purchasing-orders';
+  activePage?: 'users' | 'dashboard' | 'pos' | 'inventory' | 'raw-materials' | 'history' | 'accounting' | 'customers' | 'employees' | 'hrm' | 'foundation' | 'inventory-operations' | 'purchasing-orders';
 };
 
 type MenuItem = {
@@ -18,18 +18,17 @@ type MenuItem = {
 
 const menuItems: MenuItem[] = [
   { key: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard', anyOf: ['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view'] },
-  { key: 'operations', label: 'ERP Workspace', icon: '🧭', path: '/erp/operations', anyOf: ['purchasing.supplier.create', 'purchasing.order.create', 'sales.order.create', 'accounting.report.view', 'accounting.erp_journal.create'] },
   { key: 'pos', label: 'Kasir (POS)', icon: '🛒', path: '/pos', permission: 'pos.sale.view' },
-  { key: 'inventory', label: 'Data Produk', icon: '📦', path: '/inventory', permission: 'inventory.stock.view' },
+  { key: 'inventory', label: 'Inventory', icon: '📦', path: '/inventory', permission: 'inventory.stock.view' },
   { key: 'inventory-operations', label: 'Kontrol Persediaan', icon: '📈', path: '/inventory/operations', anyOf: ['inventory.stock.view', 'inventory.stock.adjust'] },
-  { key: 'purchasing-orders', label: 'Purchase Order', icon: '📝', path: '/purchasing/orders', permission: 'purchasing.order.view' },
   { key: 'raw-materials', label: 'Bahan Baku', icon: '🫙', path: '/raw-materials', permission: 'inventory.stock.view' },
-  { key: 'history', label: 'Riwayat & Laporan', icon: '🧾', path: '/history', anyOf: ['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view'] },
-  { key: 'users', label: 'Kelola Users', icon: '👥', path: '/users', permission: 'users.user.view' },
-  { key: 'accounting', label: 'Buku Akuntan', icon: '💲', path: '/accounting', anyOf: ['accounting.journal.view', 'accounting.erp_account.view', 'accounting.report.view'] },
-  { key: 'customers', label: 'Pelanggan', icon: '💻', path: '/customers', permission: 'sales.order.view' },
+  { key: 'purchasing-orders', label: 'Purchase Order', icon: '📝', path: '/purchasing/orders', permission: 'purchasing.order.view' },
+  { key: 'customers', label: 'CRM / Pelanggan', icon: '👤', path: '/customers', permission: 'sales.order.view' },
   { key: 'employees', label: 'Karyawan', icon: '🧑‍💻', path: '/employees', permission: 'hr.employee.view' },
-  { key: 'hrm', label: 'HRD & Penggajian', icon: '🧑‍💼', path: '/hrm', permission: 'hr.employee.view' },
+  { key: 'hrm', label: 'HRM / Penggajian', icon: '🧑‍💼', path: '/hrm', permission: 'hr.employee.view' },
+  { key: 'accounting', label: 'Accounting / Finance', icon: '💲', path: '/accounting', anyOf: ['accounting.journal.view', 'accounting.erp_account.view', 'accounting.report.view'] },
+  { key: 'history', label: 'Riwayat & Laporan', icon: '🧾', path: '/history', anyOf: ['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view'] },
+  { key: 'users', label: 'Users', icon: '👥', path: '/users', permission: 'users.user.view' },
   { key: 'foundation', label: 'Administration', icon: '⚙️', path: '/admin/foundation', permission: 'rbac.role.view' },
 ];
 
