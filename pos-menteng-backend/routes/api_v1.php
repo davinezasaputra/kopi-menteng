@@ -22,8 +22,8 @@ Route::prefix('v1')->middleware(['request.id','security.headers'])->group(functi
     Route::middleware(['auth:sanctum','throttle:erp'])->group(function () {
         Route::get('/me', [FoundationController::class, 'context'])->middleware('tenant');
         Route::post('/context', function (Request $request) {
-            $data=$request->validate(['tenant_id'=>['nullable','integer'],'company_id'=>['nullable','integer'],'branch_id'=>['nullable','integer']]);
-            foreach(['tenant_id'=>'X-Tenant-ID','company_id'=>'X-Company-ID','branch_id'=>'X-Branch-ID'] as $field=>$header){if(array_key_exists($field,$data)&&$data[$field]!==null)$request->headers->set($header,(string)$data[$field]);}
+            $data=$request->validate(['tenant_id'=>['nullable','integer'],'company_id'=>['nullable','integer'],'branch_id'=>['nullable','integer'],'location_id'=>['nullable','integer']]);
+            foreach(['tenant_id'=>'X-Tenant-ID','company_id'=>'X-Company-ID','branch_id'=>'X-Branch-ID','location_id'=>'X-Location-ID'] as $field=>$header){if(array_key_exists($field,$data)&&$data[$field]!==null)$request->headers->set($header,(string)$data[$field]);}
             app(TenantContext::class)->resolveFor($request->user(),$request);
             return app(FoundationController::class)->context();
         });
