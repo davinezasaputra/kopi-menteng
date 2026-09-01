@@ -76,7 +76,7 @@ class SupplierCreditNoteService
             }
 
             if($invoice){
-                $invoice->lockForUpdate();
+                $invoice = SupplierInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
                 $outstanding=max(0,(float)$invoice->total_amount-(float)$invoice->paid_amount);
                 $alreadyCredited=(float)SupplierCreditNote::query()
                     ->where('supplier_invoice_id',$invoice->id)
@@ -121,8 +121,8 @@ class SupplierCreditNoteService
                 (string)$note->id,
                 'Supplier credit note ' . $note->credit_note_number,
                 [
-                    ['account_id'=>$apAccount->id,'debit'=>0,'credit'=>$amount,'description'=>'Supplier credit note liability reduction'],
-                    ['account_id'=>$inventoryAccount->id,'debit'=>$amount,'credit'=>0,'description'=>'Credit note inventory reversal'],
+                    ['account_id'=>$apAccount->id,'debit'=>$amount,'credit'=>0,'description'=>'Supplier credit note reduces AP'],
+                    ['account_id'=>$inventoryAccount->id,'debit'=>0,'credit'=>$amount,'description'=>'Supplier return reduces inventory'],
                 ],
                 (int)$note->branch_id
             );
@@ -135,14 +135,10 @@ class SupplierCreditNoteService
 
     private function applyToInvoice(SupplierCreditNote $note,SupplierInvoice $invoice,float $amount): void
     {
-        $note->applied_amount=$amount;
-        $note->remaining_amount=0;
-        $note->status='applied';
+        $note->applied_amount = $amount;
+        $note->remaining_amount = 0;
+        $note->status = 'applied';
         $note->save();
-
-        $invoice->paid_amount=max(0,(float)$invoice->paid_amount-$amount);
-        $invoice->status=$invoice->paid_amount >= $invoice->total_amount ? 'paid' : ($invoice->paid_amount > 0 ? 'partially_paid' : 'open');
-        $invoice->save();
     }
 
     private function accountByCode(string $code): ErpAccount
