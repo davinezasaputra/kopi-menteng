@@ -3,10 +3,11 @@ export function getPermissions(): string[] {
 }
 
 export function can(permission: string): boolean {
-  return getPermissions().includes(permission);
+  const current = getPermissions();
+  return current.includes('*') || current.includes(permission);
 }
 
 export function canAny(permissions: string[]): boolean {
   const current = getPermissions();
-  return permissions.some((permission) => current.includes(permission));
+  return current.includes('*') || permissions.some((permission) => current.includes(permission));
 }
