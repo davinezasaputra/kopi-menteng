@@ -41,4 +41,5 @@ class PurchaseOrder extends Model
     public function approver(): BelongsTo { return $this->belongsTo(User::class, 'approved_by'); }
     public function canceller(): BelongsTo { return $this->belongsTo(User::class, 'cancelled_by'); }
     public function items(): HasMany { return $this->hasMany(PurchaseOrderItem::class); }
+    public function goodsReceipts(): HasMany { return $this->hasMany(GoodsReceipt::class); }
 }
