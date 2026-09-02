@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Accounting\Services\PosOrderAccountingService;
 use App\Domain\Audit\Services\AuditService;
 use App\Domain\Inventory\Services\InventoryService;
 use App\Http\Controllers\Controller;
@@ -25,6 +26,7 @@ class OrderController extends Controller
         private readonly OrganizationScope $scope,
         private readonly InventoryService $inventory,
         private readonly AuditService $audit,
+        private readonly PosOrderAccountingService $accounting,
     ) {}
 
     public function index(Request $request)
@@ -136,6 +138,10 @@ class OrderController extends Controller
 
             if ($customer && $validated['payment_method']==='cash') $customer->increment('points',(int)floor($total/10000));
             foreach ($processedItems as $processedItem) $order->items()->create($processedItem);
+
+            if ($order->status === 'paid') {
+                $this->accounting->postPaidOrder($order);
+            }
 
             $paymentUrl = null;
             if ($validated['payment_method'] !== 'cash') {
