@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Accounting\Models\FiscalPeriod;
 use App\Domain\Identity\Models\Permission;
 use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Branch;
@@ -164,6 +165,16 @@ class PayrollAutomationApiTest extends TestCase
             'deduction' => 0,
             'attendance_deduction' => 0,
             'total_salary' => 5000000,
+        ]);
+
+        FiscalPeriod::create([
+            'tenant_id' => $this->tenant->id,
+            'company_id' => $this->company->id,
+            'year' => 2026,
+            'month' => 9,
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2026-09-30',
+            'status' => 'open',
         ]);
 
         $response = $this->actingAs($this->user)
