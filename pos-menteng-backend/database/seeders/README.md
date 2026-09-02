@@ -1,54 +1,56 @@
 # ERP Seeders
 
-## Master seeder
+`DatabaseSeeder` is the single entry point for local/UAT ERP seed data.
 
-Use the main entry point:
+Run:
 
-    php artisan db:seed
+```bash
+php artisan db:seed
+```
 
-or explicitly:
+For a clean UAT database:
 
-    php artisan db:seed --class=Database\\Seeders\\ErpMasterSeeder
+```bash
+php artisan migrate:fresh --seed
+```
 
-`ErpMasterSeeder` is idempotent and intended for development/UAT master data.
+**Warning:** `migrate:fresh` destroys existing database data. Use it only on a database that is safe to reset.
 
-It seeds or synchronizes:
+## Seeded account
+
+The ERP seed creates only the Developer account:
+
+```text
+Email: davin-eza@mahasiswa.ubb.ac.id
+Password: value of SEED_DEVELOPER_PASSWORD
+```
+
+Set the password in the backend `.env` before seeding. Do not commit the password.
+
+The Developer receives the primary tenant membership and the `tenant-admin` ERP role. Other ERP roles remain available as role definitions for RBAC testing, but demo user accounts for those roles are not seeded.
+
+## Seeded master data
+
+The master seeder synchronizes:
+
 - Tenant / Company / Branch / Warehouse
-- ERP roles and permissions for the ERP foundation
-- **Only the Developer account** and its primary tenant membership
+- ERP permissions and role definitions
+- Developer account and membership
 - ERP Chart of Accounts
 - Product categories and demo products
-- Initial inventory balances only when a balance row does not exist
+- Initial inventory balances when a balance row does not already exist
 - Suppliers
 - Customers when the current schema supports them
 - Current-year Purchasing Budget
 - Purchasing Approval Matrix
 - Sales Approval Matrix
 
-## Developer account
+## Transaction data
 
-The only user account created by the seed is:
+The master seeder does not create operational transactions such as PO, Goods Receipt, Supplier Invoice, Supplier Payment, Supplier Return, Credit Note, Sales Order, Reservation, Attendance, Payroll, or Journal transactions. Create those through the application/API during UAT so inventory and accounting can be validated from a known baseline.
 
-    davin-eza@mahasiswa.ubb.ac.id
+## Related UAT documentation
 
-Password is read from:
+See `docs/ERP_END_TO_END_UAT_RUNBOOK.md` for the complete manual test sequence from login through Purchasing, Sales, POS, Finance, HRM/Payroll, closing, security, and regression checks.
 
-    SEED_DEVELOPER_PASSWORD
-
-For a controlled local/UAT run, configure the value in the backend `.env`. The seeder keeps `change-me-immediately` only as a fallback for environments where the variable is omitted.
-
-## Clean UAT reset
-
-To start testing from a clean database:
-
-    php artisan migrate:fresh --seed
-
-**Warning:** this command destroys all existing database data. Use it only on a local/UAT database where the data can be reset.
-
-After the reset, log in from the frontend Admin Login screen with the Developer account, then execute the UAT runbook in `docs/ERP_END_TO_END_UAT_RUNBOOK.md`.
-
-## Important
-
-The master seeder intentionally does not create PO, Goods Receipt, Supplier Invoice, Supplier Payment, Supplier Return, Credit Note, Sales Order, Reservation, Attendance, Payroll, or Journal transaction records. These should be created through the application/API during UAT so inventory and accounting behavior can be verified from a clean starting point.
-
-Legacy ProductSeeder and ErpFoundationSeeder remain in the repository for backward compatibility, but `DatabaseSeeder` uses `ErpMasterSeeder` as the ERP seed entry point.
+Legacy ProductSeeder and ErpFoundationSeeder remain for backward compatibility; use `DatabaseSeeder` for the normal local/UAT reset flow.
