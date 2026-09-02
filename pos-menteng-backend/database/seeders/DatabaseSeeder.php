@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         ]);
         $this->call([
             ErpMasterSeeder::class,
+            OperationalExpenseAccountSeeder::class,
             EnterprisePermissionSyncSeeder::class,
             Phase1PermissionCatalogSeeder::class,
         ]);
