@@ -6,7 +6,7 @@ use App\Domain\Accounting\Models\ErpAccount;
 use App\Domain\Accounting\Models\ErpJournalBatch;
 use App\Domain\Accounting\Services\ErpAccountingService;
 use App\Http\Controllers\Controller;
-use App\Services\PermissionService;
+use App\Support\Auth\PermissionService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
