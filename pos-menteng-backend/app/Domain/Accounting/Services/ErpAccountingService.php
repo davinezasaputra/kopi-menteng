@@ -102,7 +102,18 @@ class ErpAccountingService
         }
 
         foreach ($lines as $line) {
-            if (((float)($line['debit'] ?? 0) > 0) && ((float)($line['credit'] ?? 0) > 0)) {
+            $lineDebit = (float)($line['debit'] ?? 0);
+            $lineCredit = (float)($line['credit'] ?? 0);
+
+            if ($lineDebit < 0 || $lineCredit < 0) {
+                throw ValidationException::withMessages(['lines' => 'Journal line debit and credit cannot be negative.']);
+            }
+
+            if ($lineDebit <= 0 && $lineCredit <= 0) {
+                throw ValidationException::withMessages(['lines' => 'A journal line must contain a positive debit or credit amount.']);
+            }
+
+            if ($lineDebit > 0 && $lineCredit > 0) {
                 throw ValidationException::withMessages(['lines' => 'A journal line cannot contain both debit and credit.']);
             }
 
