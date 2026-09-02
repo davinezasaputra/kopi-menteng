@@ -39,6 +39,7 @@ class TenantLicense extends Model
         if (! $defaults) return;
 
         foreach ($defaults as $field => $value) {
+            if ($overwrite && $this->isDirty($field)) continue;
             if ($overwrite || $this->getAttribute($field) === null) {
                 $this->setAttribute($field, $value);
             }
