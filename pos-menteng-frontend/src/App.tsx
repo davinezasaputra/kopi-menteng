@@ -32,16 +32,30 @@ import DeveloperConsole from './pages/DeveloperConsoleSaas';
 import DeveloperOrganization from './pages/DeveloperOrganization';
 import TenantProvisioning from './pages/TenantProvisioning';
 
+const isAuthenticationRequest = (url: unknown): boolean => {
+  const value = String(url ?? '');
+  return value.endsWith('/api/login') || value.endsWith('/api/login-pin') || value.endsWith('/login') || value.endsWith('/login-pin');
+};
+
+const isBackofficeRoute = (pathname: string): boolean => pathname !== '/' && pathname !== '/pos';
+
 const AxiosInterceptor = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
   useEffect(() => {
-    const interceptor = axios.interceptors.response.use(response => response, error => {
-      if (error.response?.status === 401) {
-        localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.removeItem('permissions'); localStorage.removeItem('erp_context'); localStorage.removeItem('foundation_loaded');
-        navigate('/', { replace: true });
-      }
-      return Promise.reject(error);
-    });
+    const interceptor = axios.interceptors.response.use(
+      response => response,
+      error => {
+        if (error.response?.status === 401 && !isAuthenticationRequest(error.config?.url)) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('permissions');
+          localStorage.removeItem('erp_context');
+          localStorage.removeItem('foundation_loaded');
+          navigate(isBackofficeRoute(window.location.pathname) ? '/admin-login' : '/', { replace: true });
+        }
+        return Promise.reject(error);
+      },
+    );
     return () => axios.interceptors.response.eject(interceptor);
   }, [navigate]);
   return <>{children}</>;
