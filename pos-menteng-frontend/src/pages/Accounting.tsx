@@ -8,109 +8,135 @@ export default function Accounting() {
   const [activeTab, setActiveTab] = useState<'accounts' | 'journals'>('accounts');
   const [accounts, setAccounts] = useState<any[]>([]);
   const [journals, setJournals] = useState<any[]>([]);
-  
-  // Filter khusus untuk tampilan Buku Besar (General Ledger per Akun)
+
   const [filterAccount, setFilterAccount] = useState('');
 
   const [showAccModal, setShowAccModal] = useState(false);
   const [accForm, setAccForm] = useState({ code: '', name: '', type: 'asset' });
 
   const [showJrnModal, setShowJrnModal] = useState(false);
-  const [jrnForm, setJrnForm] = useState({ 
-    account_id: '', 
-    date: new Date().toISOString().split('T')[0], 
-    description: '', 
-    debit: '', 
-    credit: '' 
+  const [jrnForm, setJrnForm] = useState({
+    debit_account_id: '',
+    credit_account_id: '',
+    date: new Date().toISOString().split('T')[0],
+    description: '',
+    amount: '',
   });
 
   useEffect(() => {
     fetchAccounts();
-    if (activeTab === 'journals') {
-      fetchJournals();
-    }
+    if (activeTab === 'journals') fetchJournals();
   }, [activeTab]);
+
+  const authConfig = () => ({
+    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+  });
 
   const fetchAccounts = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/accounting/accounts', { 
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      setAccounts(res.data.data);
-    } catch (e) { toast.error('Gagal memuat Daftar Akun'); }
+      const res = await axios.get('http://localhost:8000/api/accounting/accounts', authConfig());
+      setAccounts(Array.isArray(res.data.data) ? res.data.data : []);
+    } catch {
+      toast.error('Gagal memuat Daftar Akun');
+    }
   };
 
   const fetchJournals = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/accounting/journals', { 
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      setJournals(res.data.data);
-    } catch (e) { toast.error('Gagal memuat Jurnal Umum'); }
+      const res = await axios.get('http://localhost:8000/api/accounting/journals', authConfig());
+      setJournals(Array.isArray(res.data.data) ? res.data.data : []);
+    } catch {
+      toast.error('Gagal memuat Jurnal Umum');
+    }
   };
 
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:8000/api/accounting/accounts', accForm, { 
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      toast.success('Akun tersimpan!');
+      await axios.post('http://localhost:8000/api/accounting/accounts', accForm, authConfig());
+      toast.success('Akun ERP tersimpan!');
       setShowAccModal(false);
-      setAccForm({ code: '', name: '', type: 'asset' }); 
+      setAccForm({ code: '', name: '', type: 'asset' });
       fetchAccounts();
-    } catch (e) { toast.error('Gagal menyimpan akun.'); }
+    } catch {
+      toast.error('Gagal menyimpan akun.');
+    }
   };
 
   const handleSaveJournal = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const payload = {
-        ...jrnForm,
-        debit: parseNumberInput(jrnForm.debit) || 0,
-        credit: parseNumberInput(jrnForm.credit) || 0
-      };
+    const amount = parseNumberInput(jrnForm.amount) || 0;
 
-      await axios.post('http://localhost:8000/api/accounting/journals', payload, { 
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      toast.success('Jurnal dicatat!');
+    if (!jrnForm.debit_account_id || !jrnForm.credit_account_id || amount <= 0) {
+      toast.error('Pilih akun debit, akun kredit, dan isi nominal lebih dari nol.');
+      return;
+    }
+
+    if (jrnForm.debit_account_id === jrnForm.credit_account_id) {
+      toast.error('Akun debit dan kredit harus berbeda.');
+      return;
+    }
+
+    try {
+      await axios.post('http://localhost:8000/api/accounting/journals', {
+        journal_date: jrnForm.date,
+        description: jrnForm.description,
+        lines: [
+          {
+            account_id: Number(jrnForm.debit_account_id),
+            debit: amount,
+            credit: 0,
+            description: jrnForm.description,
+          },
+          {
+            account_id: Number(jrnForm.credit_account_id),
+            debit: 0,
+            credit: amount,
+            description: jrnForm.description,
+          },
+        ],
+      }, authConfig());
+
+      toast.success('Jurnal ERP dicatat!');
       setShowJrnModal(false);
-      setJrnForm({ account_id: '', date: new Date().toISOString().split('T')[0], description: '', debit: '', credit: '' });
+      setJrnForm({
+        debit_account_id: '',
+        credit_account_id: '',
+        date: new Date().toISOString().split('T')[0],
+        description: '',
+        amount: '',
+      });
       fetchJournals();
-    } catch (e) { toast.error('Gagal mencatat jurnal.'); }
+    } catch {
+      toast.error('Gagal mencatat jurnal. Periksa periode fiskal dan keseimbangan jurnal.');
+    }
   };
 
-  const formatRp = (angka: number) => new Intl.NumberFormat('id-ID', { 
-    style: 'currency', currency: 'IDR', minimumFractionDigits: 0 
+  const formatRp = (angka: number) => new Intl.NumberFormat('id-ID', {
+    style: 'currency', currency: 'IDR', minimumFractionDigits: 0,
   }).format(angka || 0);
 
-  // Kalkulasi Buku Besar Dinamis
-  const filteredJournals = filterAccount 
+  const filteredJournals = filterAccount
     ? journals.filter(jrn => jrn.account?.id == filterAccount || jrn.account_id == filterAccount)
     : journals;
 
   const totalDebit = filteredJournals.reduce((sum, jrn) => sum + Number(jrn.debit || 0), 0);
   const totalCredit = filteredJournals.reduce((sum, jrn) => sum + Number(jrn.credit || 0), 0);
 
+  const postableAccounts = accounts.filter(acc => acc.is_postable && acc.is_active);
+
   return (
     <div className="flex h-screen w-full bg-stone-50 font-sans text-stone-800">
       <AdminSidebar activePage="accounting" />
-      
+
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-20 bg-white border-b border-stone-200 flex items-center justify-between px-8 shadow-sm">
           <h1 className="text-xl font-bold text-stone-800">Buku Besar Akuntansi</h1>
           <div className="flex gap-2">
-            <button 
-              onClick={() => setActiveTab('accounts')} 
-              className={`px-4 py-2 font-bold rounded-lg transition ${activeTab === 'accounts' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
-            >
+            <button onClick={() => setActiveTab('accounts')} className={`px-4 py-2 font-bold rounded-lg transition ${activeTab === 'accounts' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>
               Daftar Akun (COA)
             </button>
-            <button 
-              onClick={() => setActiveTab('journals')} 
-              className={`px-4 py-2 font-bold rounded-lg transition ${activeTab === 'journals' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
-            >
+            <button onClick={() => setActiveTab('journals')} className={`px-4 py-2 font-bold rounded-lg transition ${activeTab === 'journals' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>
               Buku Besar & Jurnal
             </button>
           </div>
@@ -119,15 +145,9 @@ export default function Accounting() {
         <main className="flex-1 overflow-y-auto p-8">
           <div className="mb-4 flex items-center justify-between">
             {activeTab === 'journals' ? (
-              <select 
-                value={filterAccount} 
-                onChange={(e) => setFilterAccount(e.target.value)}
-                className="border p-2 rounded-lg bg-white shadow-sm font-bold text-stone-700"
-              >
+              <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} className="border p-2 rounded-lg bg-white shadow-sm font-bold text-stone-700">
                 <option value="">Semua Akun (Jurnal Umum)</option>
-                {accounts.map(acc => (
-                  <option key={acc.id} value={acc.id}>Buku Besar: {acc.name}</option>
-                ))}
+                {accounts.map(acc => <option key={acc.id} value={acc.id}>Buku Besar: {acc.name}</option>)}
               </select>
             ) : <div />}
 
@@ -166,17 +186,14 @@ export default function Accounting() {
                       <td className="p-4 text-stone-500">{jrn.date}</td>
                       <td className="p-4 font-bold">{jrn.description}</td>
                       <td className="p-4">
-                        <span className="bg-stone-100 px-2 py-1 rounded text-xs font-bold mr-2">
-                          {jrn.account?.code || 'SYS'}
-                        </span> 
-                        {jrn.account?.name || jrn.account_category || 'Tanpa Akun'}
+                        <span className="bg-stone-100 px-2 py-1 rounded text-xs font-bold mr-2">{jrn.account?.code || 'SYS'}</span>
+                        {jrn.account?.name || 'Tanpa Akun'}
                       </td>
-                      <td className="p-4 text-right text-stone-700 font-bold">{jrn.debit > 0 ? formatRp(jrn.debit) : '-'}</td>
-                      <td className="p-4 text-right text-stone-700 font-bold">{jrn.credit > 0 ? formatRp(jrn.credit) : '-'}</td>
+                      <td className="p-4 text-right text-stone-700 font-bold">{Number(jrn.debit) > 0 ? formatRp(Number(jrn.debit)) : '-'}</td>
+                      <td className="p-4 text-right text-stone-700 font-bold">{Number(jrn.credit) > 0 ? formatRp(Number(jrn.credit)) : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
-                {/* Baris Total Untuk Buku Besar */}
                 <tfoot className="bg-stone-100 border-t-2 border-stone-300">
                   <tr>
                     <td colSpan={3} className="p-4 text-right font-black uppercase text-stone-600">Total Akumulasi:</td>
@@ -190,7 +207,6 @@ export default function Accounting() {
         </main>
       </div>
 
-      {/* MODAL COA */}
       {showAccModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
@@ -211,22 +227,22 @@ export default function Accounting() {
         </div>
       )}
 
-      {/* MODAL JURNAL */}
       {showJrnModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <h2 className="mb-4 text-lg font-bold">Catat Jurnal Umum</h2>
+            <h2 className="mb-4 text-lg font-bold">Catat Jurnal ERP</h2>
             <form onSubmit={handleSaveJournal} className="space-y-4">
-              <select required value={jrnForm.account_id} onChange={e => setJrnForm({...jrnForm, account_id: e.target.value})} className="w-full border p-3 rounded-xl bg-stone-50">
-                <option value="" disabled>-- Pilih Akun --</option>
-                {accounts.map(acc => <option key={acc.id} value={acc.id}>[{acc.code}] {acc.name}</option>)}
+              <select required value={jrnForm.debit_account_id} onChange={e => setJrnForm({...jrnForm, debit_account_id: e.target.value})} className="w-full border p-3 rounded-xl bg-stone-50">
+                <option value="" disabled>-- Akun Debit --</option>
+                {postableAccounts.map(acc => <option key={acc.id} value={acc.id}>[Dr] {acc.code} - {acc.name}</option>)}
+              </select>
+              <select required value={jrnForm.credit_account_id} onChange={e => setJrnForm({...jrnForm, credit_account_id: e.target.value})} className="w-full border p-3 rounded-xl bg-stone-50">
+                <option value="" disabled>-- Akun Kredit --</option>
+                {postableAccounts.map(acc => <option key={acc.id} value={acc.id}>[Cr] {acc.code} - {acc.name}</option>)}
               </select>
               <input type="date" required value={jrnForm.date} onChange={e => setJrnForm({...jrnForm, date: e.target.value})} className="w-full border p-3 rounded-xl bg-stone-50" />
               <input type="text" placeholder="Deskripsi Jurnal" required value={jrnForm.description} onChange={e => setJrnForm({...jrnForm, description: e.target.value})} className="w-full border p-3 rounded-xl bg-stone-50" />
-              <div className="flex gap-4">
-                <input type="text" inputMode="numeric" placeholder="Debit (Rp)" value={jrnForm.debit} onChange={e => setJrnForm({...jrnForm, debit: formatNumberInput(e.target.value)})} className="w-full border p-3 rounded-xl bg-stone-50" />
-                <input type="text" inputMode="numeric" placeholder="Kredit (Rp)" value={jrnForm.credit} onChange={e => setJrnForm({...jrnForm, credit: formatNumberInput(e.target.value)})} className="w-full border p-3 rounded-xl bg-stone-50" />
-              </div>
+              <input type="text" inputMode="numeric" placeholder="Nominal (Rp)" required value={jrnForm.amount} onChange={e => setJrnForm({...jrnForm, amount: formatNumberInput(e.target.value)})} className="w-full border p-3 rounded-xl bg-stone-50" />
               <div className="flex gap-2 pt-2"><button type="button" onClick={() => setShowJrnModal(false)} className="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-500">Batal</button><button type="submit" className="flex-1 py-3 bg-amber-700 text-white rounded-xl font-bold">Simpan</button></div>
             </form>
           </div>
