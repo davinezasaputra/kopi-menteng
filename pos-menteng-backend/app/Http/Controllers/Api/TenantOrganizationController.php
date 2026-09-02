@@ -10,12 +10,17 @@ use App\Domain\Organization\Models\Warehouse;
 use App\Http\Controllers\Controller;
 use App\Support\Responses\ApiResponse;
 use App\Support\Tenancy\TenantContext;
+use App\Support\Tenancy\TenantQuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class TenantOrganizationController extends Controller
 {
-    public function __construct(private readonly TenantContext $context, private readonly AuditService $audit) {}
+    public function __construct(
+        private readonly TenantContext $context,
+        private readonly AuditService $audit,
+        private readonly TenantQuotaService $quota,
+    ) {}
 
     private function company(int $id): Company
     {
@@ -46,11 +51,14 @@ class TenantOrganizationController extends Controller
             'email' => ['nullable','email','max:255'], 'phone' => ['nullable','string','max:50'], 'address' => ['nullable','string'],
             'timezone' => ['nullable','string','max:64'], 'currency' => ['nullable','string','size:3'],
         ]);
-        if (Company::query()->where('tenant_id',$this->context->tenantId())->where('code',$data['code'])->exists()) {
-            return response()->json(['status'=>'error','message'=>'Company code sudah digunakan pada tenant ini.'],409);
-        }
-        $company = DB::transaction(function () use ($data) {
-            $data['tenant_id']=$this->context->tenantId(); $data['status']='active'; $data['timezone']=$data['timezone']??'Asia/Jakarta'; $data['currency']=$data['currency']??'IDR';
+        $tenantId = (int) $this->context->tenantId();
+        $company = DB::transaction(function () use ($data, $tenantId) {
+            $this->quota->lockTenant($tenantId);
+            $this->quota->assertCanCreate($tenantId, 'company');
+            if (Company::query()->where('tenant_id',$tenantId)->where('code',$data['code'])->exists()) {
+                abort(409, 'Company code sudah digunakan pada tenant ini.');
+            }
+            $data['tenant_id']=$tenantId; $data['status']='active'; $data['timezone']=$data['timezone']??'Asia/Jakarta'; $data['currency']=$data['currency']??'IDR';
             $company=Company::create($data); $this->audit->record('created','organization.company',$company,null,$company->toArray()); return $company->fresh();
         });
         return ApiResponse::success($company,'Company berhasil ditambahkan.',201);
@@ -69,8 +77,13 @@ class TenantOrganizationController extends Controller
     {
         $data=$request->validate(['company_id'=>['required','integer','exists:companies,id'],'code'=>['required','string','max:50','regex:/^[A-Za-z0-9._-]+$/'],'name'=>['required','string','max:255'],'type'=>['nullable','string','max:50'],'email'=>['nullable','email','max:255'],'phone'=>['nullable','string','max:50'],'address'=>['nullable','string'],'latitude'=>['nullable','numeric','between:-90,90'],'longitude'=>['nullable','numeric','between:-180,180']]);
         $company=$this->company((int)$data['company_id']);
-        if(Branch::query()->where('company_id',$company->id)->where('code',$data['code'])->exists()) return response()->json(['status'=>'error','message'=>'Branch code sudah digunakan pada company ini.'],409);
-        $branch=DB::transaction(function()use($data){$data['status']='active';$branch=Branch::create($data);Warehouse::create(['branch_id'=>$branch->id,'code'=>'MAIN','name'=>'Main Warehouse','type'=>'store','is_default'=>true,'status'=>'active']);$this->audit->record('created','organization.branch',$branch,null,$branch->fresh()->toArray());return $branch->fresh()->load(['warehouses','locations']);});
+        $tenantId = (int) $this->context->tenantId();
+        $branch=DB::transaction(function()use($data,$tenantId,$company){
+            $this->quota->lockTenant($tenantId);
+            $this->quota->assertCanCreate($tenantId, 'branch');
+            if(Branch::query()->where('company_id',$company->id)->where('code',$data['code'])->exists()) abort(409,'Branch code sudah digunakan pada company ini.');
+            $data['status']='active'; $branch=Branch::create($data); Warehouse::create(['branch_id'=>$branch->id,'code'=>'MAIN','name'=>'Main Warehouse','type'=>'store','is_default'=>true,'status'=>'active']); $this->audit->record('created','organization.branch',$branch,null,$branch->fresh()->toArray()); return $branch->fresh()->load(['warehouses','locations']);
+        });
         return ApiResponse::success($branch,'Branch berhasil ditambahkan beserta warehouse MAIN.',201);
     }
 
@@ -87,8 +100,13 @@ class TenantOrganizationController extends Controller
     {
         $branch=$this->branch($branchId);
         $data=$request->validate(['code'=>['required','string','max:50','regex:/^[A-Za-z0-9._-]+$/'],'name'=>['required','string','max:255'],'type'=>['required','in:store,warehouse,office'],'email'=>['nullable','email','max:255'],'phone'=>['nullable','string','max:50'],'address'=>['nullable','string'],'latitude'=>['nullable','numeric','between:-90,90'],'longitude'=>['nullable','numeric','between:-180,180'],'settings'=>['nullable','array']]);
-        if(Location::query()->where('branch_id',$branch->id)->where('code',$data['code'])->exists()) return response()->json(['status'=>'error','message'=>'Location code sudah digunakan pada branch ini.'],409);
-        $data['branch_id']=$branch->id;$data['status']='active';$location=Location::create($data);$this->audit->record('created','organization.location',$location,null,$location->toArray());
+        $tenantId=(int)$this->context->tenantId();
+        $location=DB::transaction(function()use($data,$branch,$tenantId){
+            $this->quota->lockTenant($tenantId);
+            $this->quota->assertCanCreate($tenantId, 'location');
+            if(Location::query()->where('branch_id',$branch->id)->where('code',$data['code'])->exists()) abort(409,'Location code sudah digunakan pada branch ini.');
+            $data['branch_id']=$branch->id;$data['status']='active';$location=Location::create($data);$this->audit->record('created','organization.location',$location,null,$location->toArray()); return $location;
+        });
         return ApiResponse::success($location,'Location berhasil ditambahkan.',201);
     }
 
