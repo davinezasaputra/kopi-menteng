@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TenantLicense extends Model
 {
     protected $fillable = [
-        'tenant_id','plan_code','plan_name','features','max_users','max_branches',
+        'tenant_id','plan_code','plan_name','features',
+        'max_users','max_companies','max_branches','max_locations',
         'starts_at','expires_at','status','auto_renew','notes',
     ];
 
@@ -52,8 +53,7 @@ class TenantLicense extends Model
         if (! $this->isActive()) return false;
 
         // Organization/company/branch/location structure is core tenant administration.
-        // An active tenant license may manage its own organization hierarchy; plan limits
-        // such as max_branches remain enforced by the organization service layer.
+        // Plan limits are enforced independently by the organization service layer.
         if (str_starts_with($permission, 'organization.')) return true;
 
         $prefixMap = [
