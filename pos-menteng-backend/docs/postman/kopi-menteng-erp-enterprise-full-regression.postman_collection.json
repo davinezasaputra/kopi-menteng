@@ -1,0 +1,144 @@
+{
+  "info": {
+    "_postman_id": "f5f0b2f1-6f1b-4a0f-b7ce-erp-full-regression",
+    "name": "Kopi Menteng ERP — Enterprise Full Regression",
+    "description": "Full regression collection for legacy POS/CRM/HRM plus ERP Foundation, Inventory, Purchasing, Sales, Accounting and Finance Closing. Existing endpoints are preserved; write requests should include X-Idempotency-Key where supported.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key":"base_url","value":"http://127.0.0.1:8000/api"},
+    {"key":"token","value":""},
+    {"key":"token_tenant_b","value":""},
+    {"key":"tenant_id","value":"1"},
+    {"key":"company_id","value":"1"},
+    {"key":"branch_id","value":"1"},
+    {"key":"warehouse_id","value":"1"},
+    {"key":"destination_warehouse_id","value":"2"},
+    {"key":"product_id","value":""},
+    {"key":"customer_id","value":""},
+    {"key":"employee_id","value":""},
+    {"key":"leave_id","value":""},
+    {"key":"payroll_id","value":""},
+    {"key":"order_id","value":""},
+    {"key":"reservation_id","value":""},
+    {"key":"opname_id","value":""},
+    {"key":"transfer_id","value":""},
+    {"key":"purchase_requisition_id","value":""},
+    {"key":"purchase_order_id","value":""},
+    {"key":"goods_receipt_id","value":""},
+    {"key":"supplier_invoice_id","value":""},
+    {"key":"supplier_payment_id","value":""},
+    {"key":"sales_order_id","value":""},
+    {"key":"fulfillment_id","value":""},
+    {"key":"shipment_id","value":""},
+    {"key":"sales_invoice_id","value":""},
+    {"key":"customer_payment_id","value":""},
+    {"key":"fiscal_period_id","value":""}
+  ],
+  "item": [
+    {
+      "name":"00 Bootstrap & Security",
+      "item":[
+        {"name":"Login","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Accept","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"davin-eza@mahasiswa.ubb.ac.id\",\n  \"password\": \"YOUR_PASSWORD\"\n}"},"url":"{{base_url}}/login"}},
+        {"name":"Me","request":{"method":"GET","header":[{"key":"Accept","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/me"}},
+        {"name":"Readiness","request":{"method":"GET","header":[{"key":"Accept","value":"application/json"}],"url":"{{base_url}}/ready"}},
+        {"name":"No Token Users","request":{"method":"GET","header":[{"key":"Accept","value":"application/json"}],"url":"{{base_url}}/users"}},
+        {"name":"Audit Logs","request":{"method":"GET","header":[{"key":"Accept","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/audit-logs"}}
+      ]
+    },
+    {
+      "name":"01 Legacy POS",
+      "item":[
+        {"name":"Shift Status","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/shifts/status"}},
+        {"name":"Open Shift","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"},{"key":"X-Idempotency-Key","value":"{{idempotency_prefix}}-shift-open"}],"body":{"mode":"raw","raw":"{\n  \"starting_cash\": 100000,\n  \"warehouse_id\": \"{{warehouse_id}}\"\n}"},"url":"{{base_url}}/shifts/open"}},
+        {"name":"Products","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/products"}},
+        {"name":"Categories","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/categories"}},
+        {"name":"Orders","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/orders"}},
+        {"name":"Order History","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/orders/history"}},
+        {"name":"POS Checkout","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"},{"key":"X-Idempotency-Key","value":"{{idempotency_prefix}}-pos-checkout"}],"body":{"mode":"raw","raw":"{\n  \"payment_method\": \"cash\",\n  \"order_type\": \"takeaway\",\n  \"items\": [{\n    \"product_id\": \"{{product_id}}\",\n    \"quantity\": 1\n  }]\n}"},"url":"{{base_url}}/orders/checkout"}},
+        {"name":"Close Shift","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"},{"key":"X-Idempotency-Key","value":"{{idempotency_prefix}}-shift-close"}],"body":{"mode":"raw","raw":"{\n  \"actual_cash\": 100000\n}"},"url":"{{base_url}}/shifts/close"}}
+      ]
+    },
+    {
+      "name":"02 Legacy CRM",
+      "item":[
+        {"name":"Customers","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/customers"}},
+        {"name":"Create Customer","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"},{"key":"X-Idempotency-Key","value":"{{idempotency_prefix}}-customer"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Postman Enterprise Customer\",\n  \"phone\": \"089900000001\",\n  \"tier\": \"silver\"\n}"},"url":"{{base_url}}/customers"}},
+        {"name":"Search Customer","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"phone\": \"089900000001\"\n}"},"url":"{{base_url}}/customers/search"}}
+      ]
+    },
+    {
+      "name":"03 Legacy HRM",
+      "item":[
+        {"name":"Employees","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/employees"}},
+        {"name":"Employee Search","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/employees/search?q=Postman"}},
+        {"name":"Create Employee","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"},{"key":"X-Idempotency-Key","value":"{{idempotency_prefix}}-employee"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Postman Enterprise Employee\",\n  \"WA\": \"089900000002\",\n  \"position\": \"Cashier\",\n  \"base_sallary\": 3000000,\n  \"status\": \"active\"\n}"},"url":"{{base_url}}/employees"}},
+        {"name":"HRM Summary","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/hrm/summary"}},
+        {"name":"Attendances","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/hrm/attendances"}},
+        {"name":"Clock In","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"},{"key":"X-Idempotency-Key","value":"{{idempotency_prefix}}-clockin"}],"body":{"mode":"raw","raw":"{\n  \"employee_id\": \"{{employee_id}}\"\n}"},"url":"{{base_url}}/hrm/clock-in"}},
+        {"name":"Payrolls","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/hrm/payrolls"}},
+        {"name":"Leaves","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/leaves"}},
+        {"name":"Attendance Report","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/leaves/attendance/report?employee_id={{employee_id}}&month=9&year=2026"}}
+      ]
+    },
+    {
+      "name":"04 Inventory",
+      "item":[
+        {"name":"Balances","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/inventory/balances"}},
+        {"name":"Movements","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/inventory/movements"}},
+        {"name":"Valuation","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/inventory/valuation"}},
+        {"name":"Receive","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"},{"key":"X-Idempotency-Key","value":"{{idempotency_prefix}}-receive"}],"body":{"mode":"raw","raw":"{\n  \"warehouse_id\": \"{{warehouse_id}}\",\n  \"product_id\": \"{{product_id}}\",\n  \"quantity\": 10,\n  \"unit_cost\": 12000\n}"},"url":"{{base_url}}/inventory/receive"}},
+        {"name":"Issue","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"},{"key":"X-Idempotency-Key","value":"{{idempotency_prefix}}-issue"}],"body":{"mode":"raw","raw":"{\n  \"warehouse_id\": \"{{warehouse_id}}\",\n  \"product_id\": \"{{product_id}}\",\n  \"quantity\": 1,\n  \"reference_type\": \"postman\",\n  \"reference_id\": \"INV-TEST\"\n}"},"url":"{{base_url}}/inventory/issue"}},
+        {"name":"Adjustment","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"},{"key":"X-Idempotency-Key","value":"{{idempotency_prefix}}-adjust"}],"body":{"mode":"raw","raw":"{\n  \"warehouse_id\": \"{{warehouse_id}}\",\n  \"product_id\": \"{{product_id}}\",\n  \"quantity\": 1,\n  \"unit_cost\": 12000\n}"},"url":"{{base_url}}/inventory/adjust"}},
+        {"name":"Transfers","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/inventory/transfers"}},
+        {"name":"Reservations","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/inventory/reservations"}},
+        {"name":"Opnames","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/inventory/opnames"}}
+      ]
+    },
+    {
+      "name":"05 Purchasing",
+      "item":[
+        {"name":"Suppliers","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/suppliers"}},
+        {"name":"Requisitions","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/requisitions"}},
+        {"name":"Purchase Orders","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/orders"}},
+        {"name":"Goods Receipts","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/goods-receipts"}},
+        {"name":"Supplier Invoices","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/invoices"}},
+        {"name":"Supplier Payments","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/payments"}},
+        {"name":"Returns","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/returns"}},
+        {"name":"Credit Notes","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/credit-notes"}},
+        {"name":"Budget","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/budgets?year=2026"}},
+        {"name":"Dashboard","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/reports/dashboard"}},
+        {"name":"AP Aging","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/purchasing/reports/ap-aging"}}
+      ]
+    },
+    {
+      "name":"06 Sales ERP",
+      "item":[
+        {"name":"Sales Orders","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/orders"}},
+        {"name":"Approval Matrix","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/approval-matrix"}},
+        {"name":"Fulfillments","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/fulfillments"}},
+        {"name":"Shipments","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/shipments"}},
+        {"name":"Invoices","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/invoices"}},
+        {"name":"Receivables","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/receivables"}},
+        {"name":"AR Aging","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/receivables/aging"}},
+        {"name":"Customer Payments","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/payments"}},
+        {"name":"Returns","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/returns"}},
+        {"name":"Dashboard","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/reports/dashboard"}},
+        {"name":"Journals","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/sales/reports/journals"}}
+      ]
+    },
+    {
+      "name":"07 Accounting & Finance",
+      "item":[
+        {"name":"ERP Accounts","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/erp/accounting/accounts"}},
+        {"name":"ERP Journals","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/erp/accounting/journals"}},
+        {"name":"Fiscal Periods","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/finance/periods"}},
+        {"name":"Trial Balance","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/finance/reports/trial-balance?from=2026-09-01&to=2026-09-30"}},
+        {"name":"Profit & Loss","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/finance/reports/profit-loss?from=2026-09-01&to=2026-09-30"}},
+        {"name":"Balance Sheet","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/finance/reports/balance-sheet?to=2026-09-30"}},
+        {"name":"Cash Book","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/finance/cash-book"}},
+        {"name":"Reconciliations","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/finance/reconciliations"}}
+      ]
+    }
+  ]
+}

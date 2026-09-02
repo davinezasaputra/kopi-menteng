@@ -1,87 +1,53 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { can, canAny, isDeveloper } from '../core/auth/permissions';
+import { getLocale, setLocale, t, type Locale } from '../core/i18n';
 
-type AdminSidebarProps = {
-  activePage?: 'users' | 'dashboard' | 'pos' | 'inventory' | 'raw-materials' | 'history' | 'accounting' | 'customers' | 'employees' | 'hrm';
-};
+export type AdminSidebarProps = { activePage?: string };
+type MenuItem = { key: string; label: string; icon: string; path: string; permission?: string; anyOf?: string[] };
+type SubGroup = { key: string; label: string; items: MenuItem[] };
+type ModuleGroup = { key: string; label: string; icon: string; items?: MenuItem[]; subgroups?: SubGroup[] };
+type Membership = { tenant_id: number; company_id: number | null; branch_id: number | null; location_id: number | null; tenant?: { name?: string | null }; company?: { name?: string | null }; branch?: { name?: string | null }; location?: { name?: string | null; type?: string | null } };
+const allowed = (i: MenuItem) => isDeveloper() || (i.permission ? can(i.permission) : i.anyOf ? canAny(i.anyOf) : true);
+const purchasing: MenuItem[] = [
+  ['purchasing-workspace','Procurement Workspace','🛒'], ['purchasing-orders','Purchase Order','📝'], ['purchasing-requisitions','Requisitions','📋'], ['purchasing-receipts','Goods Receipt','📥'], ['purchasing-invoices','Supplier Invoice','🧾'], ['purchasing-payments','Supplier Payment','💳'], ['purchasing-returns','Supplier Return','↩️'], ['purchasing-credit-notes','Credit Notes','📄'], ['purchasing-budget','Budget','💰'], ['purchasing-approval','Approval Matrix','✅'], ['purchasing-reconciliation','Reconciliation','🔎'], ['purchasing-reports','Reports','📊'],
+].map(([key,label,icon])=>({key,label,icon,path:'/purchasing',anyOf:key==='purchasing-workspace'?['purchasing.supplier.view','purchasing.requisition.view','purchasing.order.view','purchasing.receipt.view','purchasing.ap.view','purchasing.return.view','purchasing.credit_note.view','purchasing.budget.view','purchasing.approval_matrix.view','purchasing.reconciliation.view','purchasing.reporting.view']:undefined}));
+const modules: ModuleGroup[] = [
+  {key:'platform',label:'Platform',icon:'⚡',items:[{key:'developer-console',label:'Developer Console',icon:'🧠',path:'/platform'},{key:'organization-explorer',label:'Organization Explorer',icon:'🌳',path:'/platform/organization'}]},
+  {key:'erp',label:'ERP',icon:'🏢',subgroups:[
+    {key:'erp-overview',label:'Overview',items:[{key:'operations',label:'Operations Center',icon:'📊',path:'/erp/operations',anyOf:['inventory.stock.view','purchasing.supplier.view','purchasing.order.view','sales.order.view','accounting.report.view']},{key:'guided-operations',label:'Guided Workspace',icon:'🧭',path:'/erp/operations/guided',anyOf:['purchasing.supplier.create','purchasing.order.create','sales.order.create','accounting.report.view','accounting.erp_journal.create']},{key:'raw-operations',label:'Enterprise Operations',icon:'🛠️',path:'/erp/operations/raw',anyOf:['inventory.stock.view','purchasing.supplier.view','sales.order.view','accounting.report.view']} ]},
+    {key:'erp-inventory',label:'Inventory',items:[{key:'inventory',label:'Produk',icon:'📦',path:'/inventory',permission:'inventory.stock.view'},{key:'inventory-operations',label:'Kontrol Persediaan',icon:'📈',path:'/inventory/operations',anyOf:['inventory.stock.view','inventory.stock.adjust']},{key:'raw-materials',label:'Bahan Baku',icon:'🫙',path:'/raw-materials',permission:'inventory.stock.view'},{key:'menu-import',label:'Import Menu Excel',icon:'📥',path:'/inventory/menu-import',permission:'inventory.stock.adjust'}]},
+    {key:'erp-purchasing',label:'Purchasing',items:purchasing},
+    {key:'erp-finance',label:'Finance & Accounting',items:[{key:'accounting',label:'Accounting / Finance',icon:'💲',path:'/accounting',anyOf:['accounting.journal.view','accounting.erp_account.view','accounting.report.view']},{key:'history',label:'Riwayat & Laporan',icon:'🧾',path:'/history',anyOf:['sales.reporting.view','accounting.report.view','inventory.stock.view']} ]},
+    {key:'erp-sales',label:'Sales',items:[{key:'customers',label:'Pelanggan',icon:'👤',path:'/customers',permission:'sales.order.view'}]},
+  ]},
+  {key:'pos',label:'POS',icon:'🛒',items:[{key:'pos',label:'Kasir',icon:'🛒',path:'/pos',permission:'pos.sale.view'},{key:'receipt-template',label:'Template Nota & Struk',icon:'🧾',path:'/admin/pos/receipt-template',permission:'pos.receipt_template.view'}]},
+  {key:'hrm',label:'HRM',icon:'🧑‍💼',items:[{key:'employees',label:'Karyawan',icon:'🧑‍💻',path:'/employees',permission:'hr.employee.view'},{key:'hrm',label:'HRD & Penggajian',icon:'💼',path:'/hrm',permission:'hr.employee.view'},{key:'attendance-management',label:'Kontrol Absensi',icon:'🕘',path:'/hrm/attendance',permission:'hr.employee.view'}]},
+  {key:'administration',label:'Administration',icon:'⚙️',items:[{key:'users',label:'Users',icon:'👥',path:'/users',permission:'users.user.view'},{key:'foundation',label:'Organizations & Access',icon:'🔐',path:'/admin/foundation',permission:'rbac.role.view'},{key:'business-rules',label:'Business Rules',icon:'🧩',path:'/admin/business-rules',anyOf:['hr.employee.manage','pos.receipt_template.manage','inventory.stock.adjust']}]},
+];
+const filterModule=(m:ModuleGroup):ModuleGroup|null=>{if(m.key==='platform'&&!isDeveloper())return null;const items=m.items?.filter(allowed)??[];const subgroups=m.subgroups?.map(g=>({...g,items:g.items.filter(allowed)})).filter(g=>g.items.length>0)??[];return items.length||subgroups.length?{...m,items,subgroups}:null};
 
-const menuItems = [
-    { key: 'dashboard', label: 'Dashboard', icon: '📊', path: '/dashboard'},
-    { key: 'pos', label: 'Kasir (POS)', icon: '🛒', path: '/pos' },
-    { key: 'inventory', label: 'Data Produk', icon: '📦', path: '/inventory' },
-    { key: 'raw-materials', label: 'Bahan Baku', icon: '🫙', path: '/raw-materials' },
-    { key: 'history', label: 'Riwayat & Laporan', icon: '🧾', path: '/history' },
-    { key: 'users', label: 'Kelola Users', icon: '👥', path: '/users' },
-    { key: 'accounting', label: 'Buku Akuntan', icon: '💲', path: '/accounting' },
-    { key: 'customers', label: 'Pelanggan', icon: '💻', path: '/customers' },
-    { key: 'employees', label: 'Karyawan', icon: '🧑‍💻', path: '/employees' },
-    { key: 'hrm', label: 'HRD & Penggajian', icon: '🧑‍💼', path: '/hrm' },
-] as const;
-
-export default function AdminSidebar({ activePage = 'dashboard' }: AdminSidebarProps) {
-  const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-
-  const handleLogout = async() => {
-    const token = localStorage.getItem('token');
-    const toastId = toast.loading('Logoutting...');
-
-    if (token) {
-        try{
-            await axios.post('http://localhost:8000/api/logout', {}, {
-                headers:{ 'Authorization' : `Bearer ${token}` }
-            });
-        } catch (error) {
-            console.error ('Gagal menghapus token dari server', error);
-        }
-    }
-
-    localStorage.removeItem ('token');
-    localStorage.removeItem ('user');
-    toast.success ('Berhasil Logout!', {id: toastId});
-    navigate('/admin-login');
-  };
-
-  return (
-    <div className="w-64 bg-stone-900 text-stone-300 flex flex-col">
-      <div className="p-6 border-b border-stone-800 flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-700 font-bold text-white text-xs">KM</div>
-        <div className="flex flex-col">
-          <span className="font-bold text-white tracking-wide">Backoffice</span>
-          <p className="text-xs text-stone-300 tracking-wide">{user.name || 'Admin'}</p>
-        </div>
-      </div>
-      <nav className="flex-1 p-4 space-y-2">
-        {menuItems.map((item) => {
-          const isActive = activePage === item.key;
-
-          return (
-            <button
-              key={item.key}
-              onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${
-                isActive
-                  ? 'bg-amber-700/20 text-amber-500 font-medium'
-                  : 'hover:bg-stone-800 hover:text-white'
-              }`}
-            >
-              <span>{item.icon}</span>
-              {item.label}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="border-t border-stone-800 p-4">
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-red-500/10 px-4 py-3 text-sm font-bold text-red-400 transition hover:bg-red-500/20"
-        >
-          <span>⎋</span>
-          Logout
-        </button>
-      </div>
-    </div>
-  );
+export default function AdminSidebar({activePage='dashboard'}:AdminSidebarProps){
+ const navigate=useNavigate();const developer=isDeveloper();
+ const user=useMemo(()=>{try{return JSON.parse(localStorage.getItem('user')||'{}') as {name?:string;role?:string}}catch{return {}}},[]);
+ const context=useMemo(()=>{try{return JSON.parse(localStorage.getItem('erp_context')||'{}') as {tenant_id?:number;company_id?:number;branch_id?:number;location_id?:number;location_type?:string}}catch{return {}}},[]);
+ const [locale,setCurrentLocale]=useState<Locale>(getLocale()); const [memberships,setMemberships]=useState<Membership[]>([]); const [switching,setSwitching]=useState(false);
+ const allowedModules=useMemo(()=>modules.map(m=>({ ...m, label: m.key==='platform'?t('platform',locale):m.key==='erp'?t('erp',locale):m.key==='pos'?t('pos',locale):m.key==='hrm'?t('hrm',locale):m.key==='administration'?t('administration',locale):m.label })).map(filterModule).filter((m):m is ModuleGroup=>!!m),[developer,locale]);
+ const activeModule=useMemo(()=>allowedModules.find(m=>(m.items??[]).some(i=>i.key===activePage)||(m.subgroups??[]).some(g=>g.items.some(i=>i.key===activePage)))?.key??null,[activePage,allowedModules]);
+ const activeSub=useMemo(()=>allowedModules.flatMap(m=>m.subgroups??[]).find(g=>g.items.some(i=>i.key===activePage))?.key??null,[activePage,allowedModules]);
+ const [openModules,setOpenModules]=useState<string[]>(activeModule?[activeModule]:[]); const [openSubs,setOpenSubs]=useState<string[]>(activeSub?[activeSub]:[]);
+ useEffect(()=>{if(activeModule)setOpenModules(v=>v.includes(activeModule)?v:[...v,activeModule]);if(activeSub)setOpenSubs(v=>v.includes(activeSub)?v:[...v,activeSub])},[activeModule,activeSub]);
+ useEffect(()=>{const onLocale=()=>setCurrentLocale(getLocale());window.addEventListener('erp-locale-change',onLocale);document.documentElement.lang=locale;return()=>window.removeEventListener('erp-locale-change',onLocale)},[locale]);
+ const apiMemberships=async()=>{try{const response=await axios.get('/v1/my-memberships');setMemberships(response.data?.data??[]);}catch(error){console.error('membership context failed',error);}};
+ useEffect(()=>{if(developer)return;void apiMemberships();},[developer]);
+ const switchContext=async(id:string)=>{const membership=memberships[Number(id)];if(!membership)return;setSwitching(true);try{await axios.post('/v1/context',{tenant_id:membership.tenant_id,company_id:membership.company_id,branch_id:membership.branch_id,location_id:membership.location_id});const next={tenant_id:membership.tenant_id,company_id:membership.company_id,branch_id:membership.branch_id,location_id:membership.location_id,location_type:membership.location?.type??null};localStorage.setItem('erp_context',JSON.stringify(next));toast.success(locale==='id'?'Konteks organisasi diganti.':'Organization context switched.');window.location.reload();}catch(error){console.error(error);toast.error(locale==='id'?'Konteks gagal diganti.':'Failed to switch context.');}finally{setSwitching(false);}};
+ const currentMembershipIndex=memberships.findIndex(item=>item.tenant_id===context.tenant_id&&item.company_id===context.company_id&&item.branch_id===context.branch_id&&item.location_id===context.location_id);
+ const toggleLocale=()=>{const next:Locale=locale==='id'?'en':'id';setLocale(next);setCurrentLocale(next);};
+ const logout=async()=>{const id=toast.loading('Logging out...');try{await axios.post('/v1/auth/logout');toast.success(locale==='id'?'Berhasil Logout!':'Logged out!',{id})}catch(e){console.error(e);toast.success(locale==='id'?'Sesi lokal ditutup.':'Local session closed.',{id})}finally{['token','user','permissions','erp_context','foundation_loaded','erp_role'].forEach(k=>localStorage.removeItem(k));navigate('/')}};
+ return <aside className="w-72 bg-stone-900 text-stone-300 flex flex-col"><div className="p-6 border-b border-stone-800 flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded bg-amber-700 font-bold text-white text-xs">KM</div><div className="min-w-0"><span className="font-bold text-white">{developer?'Developer Console':'Backoffice'}</span><p className="text-xs text-stone-300 truncate">{user.name||'Admin'}{developer?' · GOD MODE':''}</p></div></div>
+ {!developer && memberships.length>0 && <div className="px-4 pt-4"><div className="rounded-xl border border-stone-800 bg-stone-950/40 p-3"><div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-stone-500">Organization Scope</div><select disabled={switching} value={currentMembershipIndex>=0?String(currentMembershipIndex):''} onChange={e=>void switchContext(e.target.value)} className="w-full rounded-lg border border-stone-700 bg-stone-900 px-2 py-2 text-xs text-stone-200 disabled:opacity-60"><option value="">{locale==='id'?'Pilih context':'Select context'}</option>{memberships.map((m,index)=><option key={`${m.tenant_id}-${m.company_id}-${m.branch_id}-${m.location_id}`} value={index}>{m.tenant?.name||`Tenant ${m.tenant_id}`} · {m.company?.name||`Company ${m.company_id}`} · {m.branch?.name||`Branch ${m.branch_id}`} · {m.location?.name||'All locations'}</option>)}</select></div></div>}
+ {developer && <div className="px-4 pt-4"><div className="rounded-xl border border-stone-800 bg-stone-950/40 px-3 py-2 text-[11px] text-stone-400"><div className="font-semibold text-stone-300">Platform + Tenant Context</div><div className="mt-1 truncate">T: {context.tenant_id??'-'} · C: {context.company_id??'-'} · B: {context.branch_id??'-'} · L: {context.location_id??'-'}</div></div></div>}
+ <nav className="flex-1 p-4 space-y-2 overflow-y-auto"><button onClick={()=>navigate('/dashboard')} className={`w-full flex gap-3 px-4 py-3 rounded-xl text-left ${activePage==='dashboard'?'bg-amber-700/20 text-amber-500 font-medium':'hover:bg-stone-800 hover:text-white'}`}>📊 {t('dashboard',locale)}</button>{allowedModules.map(m=>{const open=openModules.includes(m.key),active=activeModule===m.key;return <div key={m.key}><button onClick={()=>setOpenModules(v=>v.includes(m.key)?v.filter(x=>x!==m.key):[...v,m.key])} className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-left ${active?'bg-stone-800 text-white':'hover:bg-stone-800 hover:text-white'}`}><span className="flex items-center gap-3"><span>{m.icon}</span><span className="font-semibold">{m.label}</span></span><span>{open?'⌃':'⌄'}</span></button>{open&&<div className="mt-1 ml-3 space-y-1 border-l border-stone-800 pl-2">{(m.items??[]).map(i=>{const label=i.key==='developer-console'?t('developerConsole',locale):i.key==='organization-explorer'?t('organizationExplorer',locale):i.key==='inventory'?t('products',locale):i.key==='inventory-operations'?t('stockControl',locale):i.key==='raw-materials'?t('rawMaterials',locale):i.key==='customers'?t('customers',locale):i.key==='employees'?t('employees',locale):i.key==='hrm'?t('payroll',locale):i.key==='users'?t('users',locale):i.key==='foundation'?t('access',locale):i.label;return <button key={i.key} onClick={()=>navigate(i.path)} className={`w-full flex gap-3 rounded-lg px-3 py-2.5 text-left text-sm ${activePage===i.key?'bg-amber-700/20 text-amber-500 font-medium':'hover:bg-stone-800 hover:text-white'}`}><span>{i.icon}</span>{label}</button>})}{(m.subgroups??[]).map(g=>{const subOpen=openSubs.includes(g.key),subActive=g.items.some(i=>i.key===activePage);return <div key={g.key}><button onClick={()=>setOpenSubs(v=>v.includes(g.key)?v.filter(x=>x!==g.key):[...v,g.key])} className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${subActive?'text-amber-500':'text-stone-500 hover:text-stone-300'}`}><span>{g.label}</span><span>{subOpen?'−':'+'}</span></button>{subOpen&&<div className="space-y-1 pl-2">{g.items.map(i=><button key={`${g.key}-${i.key}`} onClick={()=>navigate(i.path)} className={`w-full flex gap-3 rounded-lg px-3 py-2 text-left text-sm ${activePage===i.key?'bg-amber-700/20 text-amber-500 font-medium':'hover:bg-stone-800 hover:text-white'}`}><span>{i.icon}</span>{i.label}</button>)}</div>}</div>})}</div>}</div>})}</nav><div className="border-t border-stone-800 p-4 space-y-2"><button onClick={toggleLocale} className="w-full flex items-center justify-between rounded-xl border border-stone-700 px-4 py-2.5 text-sm font-bold hover:bg-stone-800"><span>🌐 {t('language',locale)}</span><span>{locale==='id'?'🇮🇩 ID':'🇬🇧 EN'}</span></button><button onClick={logout} className="w-full flex items-center justify-center gap-2 rounded-xl bg-red-500/10 px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/20">⎋ {t('logout',locale)}</button></div></aside>;
 }

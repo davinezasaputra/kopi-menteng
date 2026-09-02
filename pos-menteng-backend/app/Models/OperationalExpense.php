@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
@@ -15,7 +17,15 @@ class OperationalExpense extends Model
         'name',
         'amount',
         'expense_date',
-        'recorded_by'
+        'recorded_by',
+        'tenant_id',
+        'company_id',
+        'branch_id',
+        'account_id',
     ];
 
+    protected $casts = [
+        'amount' => 'decimal:2',
+        'expense_date' => 'date',
+    ];
 }

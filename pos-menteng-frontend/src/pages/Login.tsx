@@ -14,7 +14,7 @@ export default function Login() {
   const handleNumberClick = (num: string) => {
     if (pin.length < 6) {
       setPin((prev) => prev + num);
-      setError(''); // Hapus pesan error saat mengetik ulang
+      setError('');
     }
   };
 
@@ -31,23 +31,18 @@ export default function Login() {
     setError('');
 
     try {
-      // Menembak API Laravel (Pastikan port Laravel Anda 8000)
       const response = await axios.post('http://localhost:8000/api/login-pin', {
         pin: pin
       });
 
       if (response.data.status === 'success') {
-        // Simpan token dan data user ke penyimpanan browser
         localStorage.setItem('token', response.data.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
-
-        // Arahkan ke halaman POS
         navigate('/pos');
       }
     } catch (err: any) {
-      // Tangani pesan error dari Laravel
       setError(err.response?.data?.message || 'Terjadi kesalahan koneksi ke server');
-      setPin(''); // Kosongkan PIN agar kasir bisa mengetik ulang
+      setPin('');
     } finally {
       setIsLoading(false);
     }
@@ -55,15 +50,13 @@ export default function Login() {
 
   return (
     <div className="flex h-screen w-full bg-[#FDFBF7] font-sans text-stone-800 selection:bg-amber-200">
-      
-      {/* BAGIAN KIRI: Branding Kopi Menteng */}
       <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-stone-900 p-12 text-stone-50 md:flex">
         <div className="absolute -left-20 -top-20 h-96 w-96 rounded-full bg-stone-800/50 blur-3xl"></div>
         <div className="absolute -bottom-32 -right-32 h-[30rem] w-[30rem] rounded-full bg-amber-900/20 blur-3xl"></div>
 
         <div className="relative z-10">
           <div className="mb-6 inline-flex h-24 w-24 items-center justify-center rounded-2xl border border-amber-700/30 bg-amber-700/20 p-4 text-amber-500 backdrop-blur-md">
-            <img src={logokopimenteng} alt= "logo kopi menteng" className="h-full w-full object-contain"></img>
+            <img src={logokopimenteng} alt="logo kopi menteng" className="h-full w-full object-contain" />
           </div>
           <h1 className="text-5xl font-black tracking-tight text-white">Kopi Menteng.</h1>
           <p className="mt-5 max-w-md text-lg font-light leading-relaxed text-stone-300">
@@ -72,11 +65,10 @@ export default function Login() {
         </div>
         
         <div className="relative z-10 text-sm font-medium tracking-wide text-stone-400">
-          <p> Versi 1.0.0</p>
+          <p>Versi 1.0.0</p>
         </div>
       </div>
-
-      {/* BAGIAN KANAN: PIN Pad */}
+      
       <div className="flex w-full flex-col items-center justify-center bg-[#FDFBF7] p-8 md:w-1/2">
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
@@ -84,7 +76,6 @@ export default function Login() {
             <p className="mt-2 text-stone-500">Otorisasi PIN Kasir Anda</p>
           </div>
 
-          {/* Menampilkan Error Jika PIN Salah */}
           {error && (
             <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">
               {error}
@@ -150,7 +141,6 @@ export default function Login() {
           >
             {isLoading ? 'Memproses...' : 'Masuk ke Sistem'}
           </button>
-
         </div>
       </div>
     </div>

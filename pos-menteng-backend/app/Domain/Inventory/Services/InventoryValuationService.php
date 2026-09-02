@@ -28,8 +28,11 @@ class InventoryValuationService
             ->map(function (InventoryBalance $balance): array {
                 $quantity = (float) $balance->quantity;
                 $averageCost = (float) $balance->average_cost;
-                $reserved = (float) $balance->reserved_quantity;
-                $available = (float) $balance->available_quantity;
+                $reserved = max(0.0, (float) $balance->reserved_quantity);
+
+                // Available stock is a derived invariant. Do not trust a stale
+                // persisted value when producing financial/inventory valuation.
+                $available = max(0.0, $quantity - $reserved);
 
                 return [
                     'warehouse_id' => $balance->warehouse_id,

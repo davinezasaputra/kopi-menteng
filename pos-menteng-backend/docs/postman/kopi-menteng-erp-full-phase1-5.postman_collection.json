@@ -1,0 +1,138 @@
+{
+  "info": {
+    "_postman_id": "8c96d3f4-erp-kopi-menteng-full",
+    "name": "Kopi Menteng ERP — FULL Regression Phase 1-5",
+    "description": "Master Postman regression collection for the Kopi Menteng ERP roadmap. Phase 1-4 are the validated baseline; Phase 5 is implementation-ready and should be runtime-validated after migration.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 Bootstrap & Identity",
+      "item": [
+        {
+          "name": "Login Developer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key":"Content-Type","value":"application/json"},
+              {"key":"Accept","value":"application/json"}
+            ],
+            "body": {
+              "mode":"raw",
+              "raw":"{\n  \"email\": \"{{developer_email}}\",\n  \"password\": \"{{developer_password}}\"\n}"
+            },
+            "url":"{{base_url}}/api/login"
+          }
+        },
+        {
+          "name":"Me",
+          "request":{"method":"GET","header":[{"key":"Accept","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/me"}
+        },
+        {
+          "name":"Products",
+          "request":{"method":"GET","header":[{"key":"Accept","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/products"}
+        },
+        {
+          "name":"Customers",
+          "request":{"method":"GET","header":[{"key":"Accept","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/customers"}
+        },
+        {
+          "name":"Inventory Balances",
+          "request":{"method":"GET","header":[{"key":"Accept","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/inventory/balances"}
+        }
+      ]
+    },
+    {
+      "name":"01 Organization & RBAC",
+      "item":[
+        {"name":"Users","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/users"}},
+        {"name":"Audit Logs","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/audit-logs"}}
+      ]
+    },
+    {
+      "name":"02 Inventory Core",
+      "item":[
+        {"name":"Balances","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/inventory/balances"}},
+        {"name":"Movements","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/inventory/movements"}},
+        {"name":"Valuation","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/inventory/valuation"}},
+        {"name":"Reservations","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/inventory/reservations"}},
+        {"name":"Opnames","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/inventory/opnames"}},
+        {"name":"Transfers","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/inventory/transfers"}}
+      ]
+    },
+    {
+      "name":"03 Purchasing",
+      "item":[
+        {"name":"Suppliers","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/suppliers"}},
+        {"name":"Requisitions","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/requisitions"}},
+        {"name":"Purchase Orders","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/orders"}},
+        {"name":"Goods Receipts","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/goods-receipts"}},
+        {"name":"Supplier Invoices","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/invoices"}},
+        {"name":"Supplier Payments","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/payments"}},
+        {"name":"Purchasing Budget","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/budgets?year=2026"}},
+        {"name":"Purchasing Approval Matrix","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/approval-matrix"}},
+        {"name":"Purchasing Dashboard","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/reports/dashboard"}},
+        {"name":"Supplier Performance","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/reports/supplier-performance"}},
+        {"name":"AP Aging","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/reports/ap-aging"}},
+        {"name":"Supplier Returns","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/returns"}},
+        {"name":"Supplier Credit Notes","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/purchasing/credit-notes"}}
+      ]
+    },
+    {
+      "name":"04 Sales",
+      "item":[
+        {"name":"Create Sales Order","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}],"body":{"mode":"raw","raw":"{\n  \"warehouse_id\": \"{{warehouse_id}}\",\n  \"customer_id\": \"{{customer_id}}\",\n  \"items\": [{\n    \"product_id\": \"{{product_id}}\",\n    \"quantity\": 2,\n    \"unit_price\": 25000\n  }]\n}"},"url":"{{base_url}}/api/sales/orders"}},
+        {"name":"List Sales Orders","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/orders"}},
+        {"name":"Sales Approval Matrix","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{sales_token}}"}],"url":"{{base_url}}/api/sales/approval-matrix"}},
+        {"name":"Sales Fulfillments","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/fulfillments"}},
+        {"name":"Sales Shipments","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/shipments"}},
+        {"name":"Sales Invoices","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/invoices"}},
+        {"name":"Sales Receivables","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/receivables"}},
+        {"name":"AR Aging","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/receivables/aging"}},
+        {"name":"Sales Payments","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/payments"}},
+        {"name":"Sales Returns","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/returns"}},
+        {"name":"Sales Dashboard","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/reports/dashboard"}},
+        {"name":"Sales Journals","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/sales/reports/journals"}}
+      ]
+    },
+    {
+      "name":"05 ERP Accounting",
+      "item":[
+        {"name":"ERP Accounts","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/erp/accounting/accounts"}},
+        {"name":"ERP Journals","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/erp/accounting/journals"}}
+      ]
+    },
+    {
+      "name":"06 Phase 5 Finance & Closing",
+      "item":[
+        {"name":"Fiscal Periods","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/finance/periods"}},
+        {"name":"Create/Ensure Fiscal Period","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}],"body":{"mode":"raw","raw":"{\n  \"year\": 2026,\n  \"month\": 9,\n  \"notes\": \"UAT period\"\n}"},"url":"{{base_url}}/api/finance/periods"}},
+        {"name":"Trial Balance","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/finance/reports/trial-balance?from=2026-09-01&to=2026-09-30"}},
+        {"name":"Profit & Loss","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/finance/reports/profit-loss?from=2026-09-01&to=2026-09-30"}},
+        {"name":"Balance Sheet","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/finance/reports/balance-sheet?to=2026-09-30"}},
+        {"name":"Cash Book","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/finance/cash-book?account_code=1000"}},
+        {"name":"Reconciliations","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":"{{base_url}}/api/finance/reconciliations"}}
+      ]
+    }
+  ],
+  "variable":[
+    {"key":"base_url","value":"http://localhost:8000"},
+    {"key":"developer_email","value":"davin-eza@mahasiswa.ubb.ac.id"},
+    {"key":"developer_password","value":"change-me-immediately"},
+    {"key":"sales_email","value":"sales.manager@menteng.test"},
+    {"key":"sales_password","value":"change-me-immediately"},
+    {"key":"token","value":""},
+    {"key":"sales_token","value":""},
+    {"key":"warehouse_id","value":""},
+    {"key":"product_id","value":""},
+    {"key":"customer_id","value":""},
+    {"key":"sales_order_id","value":""},
+    {"key":"reservation_id","value":""},
+    {"key":"fulfillment_id","value":""},
+    {"key":"shipment_id","value":""},
+    {"key":"sales_invoice_id","value":""},
+    {"key":"payment_id","value":""},
+    {"key":"sales_return_id","value":""},
+    {"key":"fiscal_period_id","value":""}
+  ]
+}

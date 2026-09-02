@@ -3,31 +3,30 @@
 namespace App\Providers;
 
 use App\Models\Leave;
-use App\Models\OperationalExpense;
-use App\Models\Order;
-use App\Models\Payroll;
-use App\Models\RestockHistory;
 use App\Observers\LeaveObserver;
-use App\Observers\OpExObserver;
-use App\Observers\PayrollObserver;
-use App\Observers\RestockObserver;
-use App\Observers\SaleObserver;
+use App\Domain\Hrm\Services\PayrollAutomationService;
+use App\Domain\Hrm\Services\ScopedPayrollAutomationService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->scoped(TenantContext::class, fn () => new TenantContext());
+        $this->app->scoped(PayrollAutomationService::class, fn ($app) => $app->make(ScopedPayrollAutomationService::class));
     }
 
     public function boot(): void
     {
-        Order::observe(SaleObserver::class);
-        OperationalExpense::observe(OpExObserver::class);
-        Payroll::observe(PayrollObserver::class);
-        RestockHistory::observe(RestockObserver::class);
+        RateLimiter::for('erp', function (Request $request) {
+            $key = $request->user() ? 'user:'.$request->user()->id : 'ip:'.$request->ip();
+            return [Limit::perMinute((int) env('ERP_API_RATE_LIMIT', 120))->by($key)];
+        });
+        RateLimiter::for('erp-login', fn (Request $request) => Limit::perMinute((int) env('ERP_LOGIN_RATE_LIMIT', 10))->by($request->ip()));
         Leave::observe(LeaveObserver::class);
     }
 }

@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\SalesReceivableController;
 use App\Http\Controllers\Api\CustomerPaymentController;
 use App\Http\Controllers\Api\SalesReturnController;
 use App\Http\Controllers\Api\SalesReportController;
+use App\Http\Controllers\Api\FinanceClosingController;
 use App\Http\Controllers\Api\PurchasingReconciliationController;
 use App\Http\Controllers\Api\PurchasingReportingController;
 use App\Http\Controllers\Api\ErpAccountingController;
@@ -39,12 +40,12 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('request.id')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/login-pin', [AuthController::class, 'loginPin']);
+Route::middleware(['request.id','security.headers'])->group(function () {
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:erp-login');
+    Route::post('/login-pin', [AuthController::class, 'loginPin'])->middleware('throttle:erp-login');
     Route::post('/midtrans/webhook', [PaymentController::class, 'handleWebhook']);
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum','throttle:erp'])->group(function () {
         Route::get('/me', function (Request $request) {
             $user = $request->user();
             $context = app(TenantContext::class);
@@ -73,7 +74,7 @@ Route::middleware('request.id')->group(function () {
         Route::middleware(['tenant', 'permission:users.user.delete'])->group(function () { Route::delete('/users/{id}', [UserController::class, 'destroy']); });
         Route::middleware(['tenant', 'permission:audit.audit_log.view'])->group(function () { Route::get('/audit-logs', [AuditLogController::class, 'index']); });
 
-        Route::middleware('tenant')->group(function () {
+        Route::middleware(['tenant','idempotency'])->group(function () {
             Route::get('/shifts/status', [ShiftController::class, 'status']);
             Route::post('/shifts/open', [ShiftController::class, 'open']);
             Route::post('/shifts/close', [ShiftController::class, 'close']);
@@ -109,6 +110,7 @@ Route::middleware('request.id')->group(function () {
             Route::post('/purchasing/invoices', [PurchasingController::class, 'storeSupplierInvoice'])->middleware('permission:purchasing.ap.create');
             Route::get('/purchasing/payments', [PurchasingController::class, 'supplierPayments'])->middleware('permission:purchasing.ap.view');
             Route::post('/purchasing/payments', [PurchasingController::class, 'storeSupplierPayment'])->middleware('permission:purchasing.ap.pay');
+            Route::get('/purchasing/reconciliation/orders', [PurchasingReconciliationController::class, 'index'])->middleware('permission:purchasing.reconciliation.view');
             Route::get('/purchasing/reconciliation/orders/{order}', [PurchasingReconciliationController::class, 'show'])->middleware('permission:purchasing.reconciliation.view');
             Route::get('/purchasing/reports/dashboard', [PurchasingReportingController::class, 'dashboard'])->middleware('permission:purchasing.reporting.view');
             Route::get('/purchasing/reports/supplier-performance', [PurchasingReportingController::class, 'supplierPerformance'])->middleware('permission:purchasing.reporting.view');
@@ -148,28 +150,22 @@ Route::middleware('request.id')->group(function () {
             Route::get('/purchasing/approval-matrix', [PurchasingController::class, 'approvalMatrix'])->middleware('permission:purchasing.approval_matrix.view');
             Route::post('/purchasing/approval-matrix', [PurchasingController::class, 'storeApprovalMatrix'])->middleware('permission:purchasing.approval_matrix.create');
             Route::post('/purchasing/budgets', [PurchasingController::class, 'storePurchasingBudget'])->middleware('permission:purchasing.budget.create');
-            Route::get('/erp/accounting/accounts', [ErpAccountingController::class, 'accounts'])->middleware('permission:accounting.erp.account.view');
-            Route::post('/erp/accounting/accounts', [ErpAccountingController::class, 'storeAccount'])->middleware('permission:accounting.erp.account.create');
-            Route::get('/erp/accounting/journals', [ErpAccountingController::class, 'journals'])->middleware('permission:accounting.erp.journal.view');
-            Route::post('/erp/accounting/journals', [ErpAccountingController::class, 'storeJournal'])->middleware('permission:accounting.erp.journal.create');
+            Route::get('/finance/periods', [FinanceClosingController::class, 'periods'])->middleware('permission:accounting.fiscal_period.view');
+            Route::post('/finance/periods', [FinanceClosingController::class, 'storePeriod'])->middleware('permission:accounting.fiscal_period.manage');
+            Route::get('/finance/reports/trial-balance', [FinanceClosingController::class, 'trialBalance'])->middleware('permission:accounting.report.view');
+            Route::get('/finance/reports/profit-loss', [FinanceClosingController::class, 'profitLoss'])->middleware('permission:accounting.report.view');
+            Route::get('/finance/reports/balance-sheet', [FinanceClosingController::class, 'balanceSheet'])->middleware('permission:accounting.report.view');
+            Route::get('/finance/cash-book', [FinanceClosingController::class, 'cashBook'])->middleware('permission:accounting.report.view');
+            Route::get('/finance/reconciliations', [FinanceClosingController::class, 'reconciliations'])->middleware('permission:accounting.reconciliation.view');
+            Route::post('/finance/reconciliations', [FinanceClosingController::class, 'reconcile'])->middleware('permission:accounting.reconciliation.create');
+            Route::post('/finance/periods/{period}/close', [FinanceClosingController::class, 'closePeriod'])->middleware('permission:accounting.period.close');
+            Route::get('/erp/accounting/accounts', [ErpAccountingController::class, 'accounts'])->middleware('permission:accounting.erp_account.view');
+            Route::post('/erp/accounting/accounts', [ErpAccountingController::class, 'storeAccount'])->middleware('permission:accounting.erp_account.create');
+            Route::get('/erp/accounting/journals', [ErpAccountingController::class, 'journals'])->middleware('permission:accounting.erp_journal.view');
+            Route::post('/erp/accounting/journals', [ErpAccountingController::class, 'storeJournal'])->middleware('permission:accounting.erp_journal.create');
             Route::post('/inventory/receive', [InventoryController::class, 'receive'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/issue', [InventoryController::class, 'issue'])->middleware('permission:inventory.stock.adjust');
             Route::post('/inventory/adjust', [InventoryController::class, 'adjust'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/opnames', [InventoryOpnameController::class, 'index'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/opnames', [InventoryOpnameController::class, 'store'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/opnames/{opname}', [InventoryOpnameController::class, 'show'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/opnames/{opname}/count', [InventoryOpnameController::class, 'count'])->middleware('permission:inventory.stock.adjust');
-            Route::post('/inventory/opnames/{opname}/approve', [InventoryOpnameController::class, 'approve'])->middleware('permission:inventory.stock.adjust');
-            Route::post('/inventory/opnames/{opname}/cancel', [InventoryOpnameController::class, 'cancel'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/reservations', [InventoryReservationController::class, 'index'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/reservations', [InventoryReservationController::class, 'store'])->middleware('permission:inventory.stock.adjust');
-            Route::get('/inventory/reservations/{reservation}', [InventoryReservationController::class, 'show'])->middleware('permission:inventory.stock.view');
-            Route::post('/inventory/reservations/{reservation}/release', [InventoryReservationController::class, 'release'])->middleware('permission:inventory.stock.adjust');
-            Route::post('/inventory/reservations/{reservation}/expire', [InventoryReservationController::class, 'expire'])->middleware('permission:inventory.stock.adjust');
-            Route::post('/inventory/reservations/{reservation}/fulfill', [InventoryReservationController::class, 'fulfill'])->middleware('permission:inventory.stock.adjust');
-
             Route::get('/raw-materials', [RawMaterialController::class, 'index']);
             Route::post('/raw-materials', [RawMaterialController::class, 'store']);
             Route::put('/raw-materials/{id}', [RawMaterialController::class, 'update']);
@@ -207,8 +203,32 @@ Route::middleware('request.id')->group(function () {
             Route::get('/hrm/payrolls', [HrmController::class, 'payrolls']);
             Route::post('/hrm/payrolls', [HrmController::class, 'generatePayroll']);
             Route::put('/hrm/payrolls/{id}/pay', [HrmController::class, 'paySalary']);
+
+            Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])->middleware('permission:inventory.transfer.view');
+            Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])->middleware('permission:inventory.transfer.create');
+            Route::get('/inventory/transfers/{transfer}', [InventoryTransferController::class, 'show'])->middleware('permission:inventory.transfer.view');
+            Route::post('/inventory/transfers/{transfer}/ship', [InventoryTransferController::class, 'ship'])->middleware('permission:inventory.transfer.ship');
+            Route::post('/inventory/transfers/{transfer}/receive', [InventoryTransferController::class, 'receive'])->middleware('permission:inventory.transfer.receive');
+            Route::post('/inventory/transfers/{transfer}/cancel', [InventoryTransferController::class, 'cancel'])->middleware('permission:inventory.transfer.cancel');
+            Route::get('/inventory/opnames', [InventoryOpnameController::class, 'index'])->middleware('permission:inventory.opname.view');
+            Route::post('/inventory/opnames', [InventoryOpnameController::class, 'store'])->middleware('permission:inventory.opname.create');
+            Route::get('/inventory/opnames/{opname}', [InventoryOpnameController::class, 'show'])->middleware('permission:inventory.opname.view');
+            Route::post('/inventory/opnames/{opname}/snapshot', [InventoryOpnameController::class, 'snapshot'])->middleware('permission:inventory.opname.snapshot');
+            Route::post('/inventory/opnames/{opname}/count', [InventoryOpnameController::class, 'physicalCount'])->middleware('permission:inventory.opname.count');
+            Route::post('/inventory/opnames/{opname}/approve', [InventoryOpnameController::class, 'approve'])->middleware('permission:inventory.opname.approve');
+            Route::post('/inventory/opnames/{opname}/cancel', [InventoryOpnameController::class, 'cancel'])->middleware('permission:inventory.opname.cancel');
+            Route::post('/inventory/opnames/{opname}/recount', [InventoryOpnameController::class, 'recount'])->middleware('permission:inventory.opname.count');
+            Route::get('/inventory/reservations', [InventoryReservationController::class, 'index'])->middleware('permission:inventory.reservation.view');
+            Route::post('/inventory/reservations', [InventoryReservationController::class, 'store'])->middleware('permission:inventory.reservation.create');
+            Route::get('/inventory/reservations/{reservation}', [InventoryReservationController::class, 'show'])->middleware('permission:inventory.reservation.view');
+            Route::post('/inventory/reservations/{reservation}/release', [InventoryReservationController::class, 'release'])->middleware('permission:inventory.reservation.release');
+            Route::post('/inventory/reservations/{reservation}/expire', [InventoryReservationController::class, 'expire'])->middleware('permission:inventory.stock.adjust');
+            Route::post('/inventory/reservations/{reservation}/fulfill', [InventoryReservationController::class, 'fulfill'])->middleware('permission:inventory.stock.adjust');
         });
     });
 });
 
-Route::get('/user', function (Request $request) { return $request->user(); })->middleware(['auth:sanctum', 'request.id']);
+Route::get('/ready', \App\Http\Controllers\Api\ReadinessController::class)->middleware('security.headers');
+Route::get('/user', function (Request $request) { return $request->user(); })->middleware(['auth:sanctum', 'request.id','security.headers']);
+
+require __DIR__.'/api_v1.php';

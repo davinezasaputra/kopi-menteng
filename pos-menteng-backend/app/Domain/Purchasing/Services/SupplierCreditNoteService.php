@@ -125,7 +125,8 @@ class SupplierCreditNoteService
                     ['account_id'=>$apAccount->id,'debit'=>$amount,'credit'=>0,'description'=>'Supplier credit note reduces AP'],
                     ['account_id'=>$inventoryAccount->id,'debit'=>0,'credit'=>$amount,'description'=>'Supplier return reduces inventory'],
                 ],
-                (int)$note->branch_id
+                (int)$note->branch_id,
+                $note->credit_note_date
             );
 
             $this->audit->record('created','supplier_credit_note',$note,null,$note->toArray());

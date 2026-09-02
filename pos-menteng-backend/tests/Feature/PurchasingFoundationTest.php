@@ -8,10 +8,10 @@ class PurchasingFoundationTest extends TestCase
 {
     public function test_purchasing_routes_are_exposed(): void
     {
-        $routes = collect(app('router')->getRoutes()->getRoutesByName());
+        $routes = app('router')->getRoutes()->getRoutes();
 
         $this->assertTrue(
-            app('router')->getRoutes()->contains(
+            collect($routes)->contains(
                 fn ($route) => $route->uri() === 'api/purchasing/suppliers'
             )
         );

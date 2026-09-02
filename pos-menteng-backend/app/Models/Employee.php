@@ -2,19 +2,24 @@
 
 namespace App\Models;
 
+use App\Domain\Organization\Models\Location;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Employee extends Model
 {
     protected $guarded = [];
-
     public $incrementing = false;
-
     protected $keyType = 'string';
 
     protected $fillable = [
         'id',
+        'tenant_id',
+        'company_id',
+        'branch_id',
+        'location_id',
         'name',
         'tanggal_lahir',
         'WA',
@@ -24,19 +29,17 @@ class Employee extends Model
         'status',
     ];
 
-    public function payrolls(): HasMany
+    protected static function booted(): void
     {
-        return $this->hasMany(Payroll::class);
+        static::creating(function (Employee $employee): void {
+            if (! $employee->getKey()) {
+                $employee->setAttribute($employee->getKeyName(), (string) Str::uuid());
+            }
+        });
     }
 
-    public function leaves(): HasMany
-    {
-        return $this->hasMany(Leave::class);
-    }
-
-    public function attendances(): HasMany
-    {
-        return $this->hasMany(Attendance::class);
-    }
-
+    public function location(): BelongsTo { return $this->belongsTo(Location::class); }
+    public function payrolls(): HasMany { return $this->hasMany(Payroll::class); }
+    public function leaves(): HasMany { return $this->hasMany(Leave::class); }
+    public function attendances(): HasMany { return $this->hasMany(Attendance::class); }
 }

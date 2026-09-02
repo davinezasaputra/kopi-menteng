@@ -1,91 +1,122 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
+import './core/api/client';
+import { can, canAny, isDeveloper } from './core/auth/permissions';
+import { useFoundationContext } from './core/hooks/useFoundationContext';
 import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
 import Pos from './pages/Pos';
 import Inventory from './pages/Inventory';
+import InventoryOperations from './pages/InventoryOperations';
 import History from './pages/History';
 import RawMaterials from './pages/RawMaterials';
 import RawMaterialImport from './pages/RawMaterialImport';
+import MenuImport from './pages/MenuImport';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Accounting from './pages/Accounting';
 import Customers from './pages/Customer';
 import Hrm from './pages/Hrm';
+import AttendanceManagement from './pages/AttendanceManagement';
 import Employees from './pages/Employees';
+import BusinessRulesSettings from './pages/BusinessRulesSettings';
+import FoundationAdmin from './pages/admin/FoundationAdmin';
+import EnterpriseOperations from './pages/EnterpriseOperations';
+import GuidedOperations from './pages/GuidedOperations';
+import PurchasingWorkspaceV2 from './pages/PurchasingWorkspaceV2';
+import OperationsCenter from './pages/OperationsCenter';
+import ReceiptTemplateSettings from './pages/ReceiptTemplateSettings';
+import DeveloperConsole from './pages/DeveloperConsoleSaas';
+import DeveloperOrganization from './pages/DeveloperOrganization';
+import TenantProvisioning from './pages/TenantProvisioning';
 
-const AxiosInterceptor = ({ children }: { children: React.ReactNode }) => {
+const isAuthenticationRequest = (url: unknown): boolean => {
+  const value = String(url ?? '');
+  return value.endsWith('/api/login') || value.endsWith('/api/login-pin') || value.endsWith('/login') || value.endsWith('/login-pin');
+};
+
+const isBackofficeRoute = (pathname: string): boolean => pathname !== '/' && pathname !== '/pos';
+
+const AxiosInterceptor = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
-
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        // Jika server menolak dengan 401 Unauthorized, hapus token & usir ke luar
-        if (error.response?.status === 401) {
+      response => response,
+      error => {
+        if (error.response?.status === 401 && !isAuthenticationRequest(error.config?.url)) {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          navigate('/', { replace: true });
+          localStorage.removeItem('permissions');
+          localStorage.removeItem('erp_context');
+          localStorage.removeItem('foundation_loaded');
+          navigate(isBackofficeRoute(window.location.pathname) ? '/admin-login' : '/', { replace: true });
         }
         return Promise.reject(error);
-      }
+      },
     );
     return () => axios.interceptors.response.eject(interceptor);
   }, [navigate]);
-
   return <>{children}</>;
 };
 
-interface ProtectedRouteProps {
- children: React.ReactNode;
-  allowedRoles?: string[];
-}
-
-const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-    const token = localStorage.getItem('token');
-    const userString = localStorage.getItem('user');
-    if(!token || !userString || userString === 'undefined'){
-      return <Navigate to = "/" replace />;
-    }
-    const user = JSON.parse(userString);
-    if (allowedRoles && !allowedRoles.includes(user?.role)) {
-      if(user?.role === 'cashier' || user?.role === 'kasir'){
-        return <Navigate to ="/pos" replace />;
-      }
-      return <Navigate to = "/dashboard" replace />;
-    }
-    return children;
+const FoundationBootstrap = ({ children }: { children: ReactNode }) => {
+  const { loading } = useFoundationContext();
+  if (localStorage.getItem('token') && loading) return <div className="min-h-screen bg-stone-50 flex items-center justify-center text-stone-600">Memuat konteks organisasi...</div>;
+  return <>{children}</>;
 };
 
+interface ProtectedRouteProps { children: ReactNode; requiredPermission?: string; requiredAnyPermission?: string[]; }
+const ProtectedRoute = ({ children, requiredPermission, requiredAnyPermission }: ProtectedRouteProps) => {
+  const token = localStorage.getItem('token'); const userString = localStorage.getItem('user');
+  if (!token || !userString || userString === 'undefined') return <Navigate to="/" replace />;
+  if (requiredPermission && !can(requiredPermission)) return <Navigate to="/forbidden" replace />;
+  if (requiredAnyPermission?.length && !canAny(requiredAnyPermission)) return <Navigate to="/forbidden" replace />;
+  return <>{children}</>;
+};
+
+const DeveloperRoute = ({ children }: { children: ReactNode }) => {
+  const token = localStorage.getItem('token');
+  if (!token) return <Navigate to="/" replace />;
+  if (!isDeveloper()) return <Navigate to="/forbidden" replace />;
+  return <>{children}</>;
+};
+
+const Forbidden = () => <main className="min-h-screen bg-stone-50 flex items-center justify-center px-6"><section className="max-w-md rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-sm"><div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">403</div><h1 className="text-xl font-bold text-stone-900">Akses ditolak</h1><p className="mt-2 text-sm text-stone-600">Akun ini tidak memiliki permission untuk membuka halaman tersebut.</p></section></main>;
+
 function App() {
-  return (
-    <BrowserRouter>
-    <Toaster position="top-center" reverseOrder={false} />
-
-    <AxiosInterceptor>
-      <Routes>
-
-        <Route path="/" element={<Login />} />
-        <Route path="/admin-login" element={<AdminLogin />} />
-
-
-        <Route path="/pos" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager', 'kasir']}> <Pos /> </ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <Inventory /> </ProtectedRoute>} />
-        <Route path="/history" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <History /> </ProtectedRoute>} />
-        <Route path="/raw-materials" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <RawMaterials /> </ProtectedRoute>} />
-        <Route path="/raw-materials/import" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <RawMaterialImport /> </ProtectedRoute>} />
-        <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}> <Dashboard/> </ProtectedRoute>} />
-        <Route path="/users" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Users /></ProtectedRoute>} />
-        <Route path ="/accounting" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Accounting /></ProtectedRoute>} />
-        <Route path ="/customers" element={<ProtectedRoute allowedRoles={['developer', 'owner', 'manager']}><Customers /></ProtectedRoute>} />
-        <Route path="/employees" element={<ProtectedRoute allowedRoles={['developer', 'admin', 'owner', 'manager']}><Employees /></ProtectedRoute>} />
-        <Route path="/hrm" element={<ProtectedRoute allowedRoles={['developer', 'admin', 'owner', 'manager']}><Hrm /></ProtectedRoute>} />
-      </Routes>
-      </AxiosInterceptor>
-    </BrowserRouter>
-  );
+  return <BrowserRouter><Toaster position="top-center" reverseOrder={false} /><FoundationBootstrap><AxiosInterceptor><Routes>
+    <Route path="/" element={<Login />} />
+    <Route path="/admin-login" element={<AdminLogin />} />
+    <Route path="/forbidden" element={<Forbidden />} />
+    <Route path="/platform" element={<DeveloperRoute><DeveloperConsole /></DeveloperRoute>} />
+    <Route path="/platform/organization" element={<DeveloperRoute><DeveloperOrganization /></DeveloperRoute>} />
+    <Route path="/platform/tenants/create" element={<DeveloperRoute><TenantProvisioning /></DeveloperRoute>} />
+    <Route path="/pos" element={<ProtectedRoute requiredPermission="pos.sale.view"><Pos /></ProtectedRoute>} />
+    <Route path="/inventory" element={<ProtectedRoute requiredPermission="inventory.stock.view"><Inventory /></ProtectedRoute>} />
+    <Route path="/inventory/operations" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><InventoryOperations /></ProtectedRoute>} />
+    <Route path="/history" element={<ProtectedRoute requiredAnyPermission={['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view']}><History /></ProtectedRoute>} />
+    <Route path="/raw-materials" element={<ProtectedRoute requiredPermission="inventory.stock.view"><RawMaterials /></ProtectedRoute>} />
+    <Route path="/raw-materials/import" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><RawMaterialImport /></ProtectedRoute>} />
+    <Route path="/inventory/menu-import" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><MenuImport /></ProtectedRoute>} />
+    <Route path="/dashboard" element={<ProtectedRoute requiredAnyPermission={['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view']}><Dashboard /></ProtectedRoute>} />
+    <Route path="/users" element={<ProtectedRoute requiredPermission="users.user.view"><Users /></ProtectedRoute>} />
+    <Route path="/accounting" element={<ProtectedRoute requiredAnyPermission={['accounting.journal.view', 'accounting.erp_account.view', 'accounting.report.view']}><Accounting /></ProtectedRoute>} />
+    <Route path="/customers" element={<ProtectedRoute requiredPermission="sales.order.view"><Customers /></ProtectedRoute>} />
+    <Route path="/employees" element={<ProtectedRoute requiredPermission="hr.employee.view"><Employees /></ProtectedRoute>} />
+    <Route path="/hrm" element={<ProtectedRoute requiredPermission="hr.employee.view"><Hrm /></ProtectedRoute>} />
+    <Route path="/hrm/attendance" element={<ProtectedRoute requiredPermission="hr.employee.view"><AttendanceManagement /></ProtectedRoute>} />
+    <Route path="/admin/business-rules" element={<ProtectedRoute requiredAnyPermission={['hr.employee.manage','pos.receipt_template.manage','inventory.stock.adjust']}><BusinessRulesSettings /></ProtectedRoute>} />
+    <Route path="/admin/foundation" element={<ProtectedRoute requiredPermission="rbac.role.view"><FoundationAdmin /></ProtectedRoute>} />
+    <Route path="/admin/pos/receipt-template" element={<ProtectedRoute requiredPermission="pos.receipt_template.view"><ReceiptTemplateSettings /></ProtectedRoute>} />
+    <Route path="/erp/operations" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'purchasing.order.view', 'sales.order.view', 'accounting.report.view']}><OperationsCenter /></ProtectedRoute>} />
+    <Route path="/erp/operations/guided" element={<ProtectedRoute requiredAnyPermission={['purchasing.supplier.create', 'purchasing.order.create', 'sales.order.create', 'accounting.report.view', 'accounting.erp_journal.create']}><GuidedOperations /></ProtectedRoute>} />
+    <Route path="/erp/operations/raw" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'sales.order.view', 'accounting.report.view']}><EnterpriseOperations /></ProtectedRoute>} />
+    <Route path="/purchasing" element={<ProtectedRoute requiredAnyPermission={['purchasing.supplier.view','purchasing.requisition.view','purchasing.order.view','purchasing.receipt.view','purchasing.ap.view','purchasing.return.view','purchasing.credit_note.view','purchasing.budget.view','purchasing.approval_matrix.view','purchasing.reconciliation.view','purchasing.reporting.view']}><PurchasingWorkspaceV2 /></ProtectedRoute>} />
+    <Route path="/purchasing/orders" element={<ProtectedRoute requiredPermission="purchasing.order.view"><PurchasingWorkspaceV2 /></ProtectedRoute>} />
+    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+  </Routes></AxiosInterceptor></FoundationBootstrap></BrowserRouter>;
 }
 
 export default App;

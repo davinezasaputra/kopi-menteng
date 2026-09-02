@@ -6,6 +6,7 @@ use App\Domain\Accounting\Models\ErpAccount;
 use App\Domain\Accounting\Models\ErpJournalBatch;
 use App\Domain\Accounting\Models\ErpJournalLine;
 use App\Domain\Core\Services\DocumentNumberService;
+use App\Domain\Organization\Models\Branch;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -15,6 +16,7 @@ class ErpAccountingService
     public function __construct(
         private readonly TenantContext $context,
         private readonly DocumentNumberService $numbers,
+        private readonly FinanceClosingService $closing,
     ) {
     }
 
@@ -58,6 +60,27 @@ class ErpAccountingService
         ]);
     }
 
+    private function resolveBranchId(array $data, $membership): int
+    {
+        $branchId = (int)($data['branch_id'] ?? $membership->branch_id);
+
+        $branch = Branch::query()
+            ->whereKey($branchId)
+            ->where('company_id', $membership->company_id)
+            ->whereHas('company', fn ($query) => $query->where('tenant_id', $membership->tenant_id))
+            ->first();
+
+        if (! $branch) {
+            throw ValidationException::withMessages(['branch_id' => 'Branch is outside the active organization scope.']);
+        }
+
+        if ((int)$branch->id !== (int)$membership->branch_id) {
+            throw ValidationException::withMessages(['branch_id' => 'Journal branch must match the active branch context.']);
+        }
+
+        return (int)$branch->id;
+    }
+
     public function postJournal(array $data): ErpJournalBatch
     {
         $membership = $this->context->membership();
@@ -65,6 +88,10 @@ class ErpAccountingService
         if (! $membership) {
             throw ValidationException::withMessages(['context' => 'No active ERP context.']);
         }
+
+        $branchId = $this->resolveBranchId($data, $membership);
+        $journalDate = $data['journal_date'] ?? now()->toDateString();
+        $this->closing->assertOpenForDate($journalDate, $membership->tenant_id, $membership->company_id);
 
         $lines = $data['lines'];
         $debit = round(collect($lines)->sum(fn ($line) => (float)($line['debit'] ?? 0)), 2);
@@ -75,7 +102,18 @@ class ErpAccountingService
         }
 
         foreach ($lines as $line) {
-            if (((float)($line['debit'] ?? 0) > 0) && ((float)($line['credit'] ?? 0) > 0)) {
+            $lineDebit = (float)($line['debit'] ?? 0);
+            $lineCredit = (float)($line['credit'] ?? 0);
+
+            if ($lineDebit < 0 || $lineCredit < 0) {
+                throw ValidationException::withMessages(['lines' => 'Journal line debit and credit cannot be negative.']);
+            }
+
+            if ($lineDebit <= 0 && $lineCredit <= 0) {
+                throw ValidationException::withMessages(['lines' => 'A journal line must contain a positive debit or credit amount.']);
+            }
+
+            if ($lineDebit > 0 && $lineCredit > 0) {
                 throw ValidationException::withMessages(['lines' => 'A journal line cannot contain both debit and credit.']);
             }
 
@@ -89,12 +127,13 @@ class ErpAccountingService
             }
         }
 
-        return DB::transaction(function () use ($membership, $data, $lines, $debit, $credit) {
+        return DB::transaction(function () use ($membership, $data, $lines, $debit, $credit, $branchId, $journalDate) {
             $requestId = request()->attributes->get('request_id');
 
             if ($requestId) {
                 $existing = ErpJournalBatch::query()
                     ->where('tenant_id', $membership->tenant_id)
+                    ->where('company_id', $membership->company_id)
                     ->where('request_id', $requestId)
                     ->with('lines.account')
                     ->first();
@@ -104,19 +143,26 @@ class ErpAccountingService
                 }
             }
 
+            $createdBy = $data['created_by'] ?? auth()->id();
+            if ($createdBy === null) {
+                throw ValidationException::withMessages([
+                    'created_by' => 'Journal creator is required when no authenticated user is available.',
+                ]);
+            }
+
             $batch = ErpJournalBatch::create([
                 'tenant_id' => $membership->tenant_id,
                 'company_id' => $membership->company_id,
-                'branch_id' => $data['branch_id'] ?? $membership->branch_id,
+                'branch_id' => $branchId,
                 'journal_number' => $data['journal_number'] ?? $this->numbers->next('erp_journal', 'JRN'),
-                'journal_date' => $data['journal_date'] ?? now()->toDateString(),
+                'journal_date' => $journalDate,
                 'status' => 'posted',
                 'source_type' => $data['source_type'] ?? 'manual',
                 'source_id' => $data['source_id'] ?? null,
                 'description' => $data['description'],
                 'total_debit' => $debit,
                 'total_credit' => $credit,
-                'created_by' => auth()->id(),
+                'created_by' => $createdBy,
                 'request_id' => $requestId,
             ]);
 
@@ -133,12 +179,15 @@ class ErpAccountingService
             return $batch->load('lines.account');
         });
     }
+
     public function postSourceJournal(
         string $sourceType,
         string $sourceId,
         string $description,
         array $lines,
         ?int $branchId = null,
+        ?string $journalDate = null,
+        ?int $createdBy = null,
     ): ErpJournalBatch {
         $membership = $this->context->membership();
 
@@ -146,7 +195,7 @@ class ErpAccountingService
             throw ValidationException::withMessages(['context' => 'No active ERP context.']);
         }
 
-        return DB::transaction(function () use ($membership, $sourceType, $sourceId, $description, $lines, $branchId) {
+        return DB::transaction(function () use ($membership, $sourceType, $sourceId, $description, $lines, $branchId, $journalDate, $createdBy) {
             $existing = ErpJournalBatch::query()
                 ->where('tenant_id', $membership->tenant_id)
                 ->where('company_id', $membership->company_id)
@@ -159,14 +208,21 @@ class ErpAccountingService
                 return $existing;
             }
 
+            if ($journalDate === null) {
+                throw ValidationException::withMessages([
+                    'journal_date' => 'Automatic journal posting requires the source business date.',
+                ]);
+            }
+
             return $this->postJournal([
                 'branch_id' => $branchId ?? $membership->branch_id,
+                'journal_date' => $journalDate,
                 'source_type' => $sourceType,
                 'source_id' => $sourceId,
                 'description' => $description,
                 'lines' => $lines,
+                'created_by' => $createdBy,
             ]);
         });
     }
-
 }
