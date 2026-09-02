@@ -4,10 +4,8 @@ namespace App\Providers;
 
 use App\Models\Leave;
 use App\Models\OperationalExpense;
-use App\Models\RestockHistory;
 use App\Observers\LeaveObserver;
 use App\Observers\OpExObserver;
-use App\Observers\RestockObserver;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -38,7 +36,6 @@ class AppServiceProvider extends ServiceProvider
         );
 
         OperationalExpense::observe(OpExObserver::class);
-        RestockHistory::observe(RestockObserver::class);
         Leave::observe(LeaveObserver::class);
     }
 }
