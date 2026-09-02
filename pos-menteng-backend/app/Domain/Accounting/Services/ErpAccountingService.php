@@ -3,7 +3,6 @@
 namespace App\Domain\Accounting\Services;
 
 use App\Domain\Accounting\Models\ErpAccount;
-use App\Domain\Accounting\Services\FinanceClosingService;
 use App\Domain\Accounting\Models\ErpJournalBatch;
 use App\Domain\Accounting\Models\ErpJournalLine;
 use App\Domain\Core\Services\DocumentNumberService;
@@ -132,6 +131,13 @@ class ErpAccountingService
                 }
             }
 
+            $createdBy = $data['created_by'] ?? auth()->id();
+            if ($createdBy === null) {
+                throw ValidationException::withMessages([
+                    'created_by' => 'Journal creator is required when no authenticated user is available.',
+                ]);
+            }
+
             $batch = ErpJournalBatch::create([
                 'tenant_id' => $membership->tenant_id,
                 'company_id' => $membership->company_id,
@@ -144,7 +150,7 @@ class ErpAccountingService
                 'description' => $data['description'],
                 'total_debit' => $debit,
                 'total_credit' => $credit,
-                'created_by' => auth()->id(),
+                'created_by' => $createdBy,
                 'request_id' => $requestId,
             ]);
 
@@ -169,6 +175,7 @@ class ErpAccountingService
         array $lines,
         ?int $branchId = null,
         ?string $journalDate = null,
+        ?int $createdBy = null,
     ): ErpJournalBatch {
         $membership = $this->context->membership();
 
@@ -176,7 +183,7 @@ class ErpAccountingService
             throw ValidationException::withMessages(['context' => 'No active ERP context.']);
         }
 
-        return DB::transaction(function () use ($membership, $sourceType, $sourceId, $description, $lines, $branchId, $journalDate) {
+        return DB::transaction(function () use ($membership, $sourceType, $sourceId, $description, $lines, $branchId, $journalDate, $createdBy) {
             $existing = ErpJournalBatch::query()
                 ->where('tenant_id', $membership->tenant_id)
                 ->where('company_id', $membership->company_id)
@@ -202,6 +209,7 @@ class ErpAccountingService
                 'source_id' => $sourceId,
                 'description' => $description,
                 'lines' => $lines,
+                'created_by' => $createdBy,
             ]);
         });
     }
