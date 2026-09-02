@@ -16,6 +16,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Midtrans\Config;
 use Midtrans\Snap;
 
@@ -154,6 +155,9 @@ class OrderController extends Controller
             $order->load('items.product');
             $this->audit->record('created','pos.order',$order,null,$order->toArray());
             return response()->json(['status'=>'success','message'=>'Transaksi berhasil diproses','payment_url'=>$paymentUrl,'data'=>$order],201);
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            return response()->json(['status'=>'error','message'=>'Transaksi tidak dapat diproses.','errors'=>$e->errors()],422);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['status'=>'error','message'=>'Transaksi gagal: '.$e->getMessage()],500);

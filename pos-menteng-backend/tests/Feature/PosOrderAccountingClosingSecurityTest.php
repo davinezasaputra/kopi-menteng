@@ -106,7 +106,7 @@ class PosOrderAccountingClosingSecurityTest extends TestCase
             'branch_id' => $branch->id,
             'user_id' => $user->id,
             'shift_id' => $shift->id,
-            'invoice_number' => 'INV-TEST-001',
+            'invoice_number' => 'INV-TEST-001'.strtoupper(substr((string) $status, 0, 1)),
             'subtotal' => 100000,
             'tax' => 0,
             'discount' => 0,
@@ -208,5 +208,49 @@ class PosOrderAccountingClosingSecurityTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $this->app->make(PosOrderAccountingService::class)->postPaidOrder($order);
+    }
+
+    public function test_midtrans_settlement_posts_erp_journal_once(): void
+    {
+        [$tenant, $company, $branch, $user] = $this->identity();
+        $this->accounts($tenant->id, $company->id);
+        $order = $this->order($tenant, $company, $branch, $user, 'pending');
+        $this->period($tenant, $company, 'open');
+
+        $payload = [
+            'transaction_status' => 'settlement',
+            'payment_type' => 'qris',
+            'order_id' => $order->invoice_number,
+            'status_code' => '200',
+        ];
+
+        $this->postJson('/api/midtrans/webhook', $payload)->assertOk();
+        $this->postJson('/api/midtrans/webhook', $payload)->assertOk();
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'paid', 'payment_method' => 'qris']);
+        $this->assertDatabaseCount('erp_journal_batches', 1);
+        $batch = ErpJournalBatch::query()->firstOrFail();
+        $this->assertSame('pos_sale_payment', $batch->source_type);
+        $this->assertSame((string) $order->id, (string) $batch->source_id);
+        $this->assertSame($branch->id, $batch->branch_id);
+        $this->assertSame('2026-09-15', $batch->journal_date->toDateString());
+    }
+
+    public function test_midtrans_settlement_is_rolled_back_when_period_is_closed(): void
+    {
+        [$tenant, $company, $branch, $user] = $this->identity();
+        $this->accounts($tenant->id, $company->id);
+        $order = $this->order($tenant, $company, $branch, $user, 'pending');
+        $this->period($tenant, $company, 'closed');
+
+        $this->postJson('/api/midtrans/webhook', [
+            'transaction_status' => 'settlement',
+            'payment_type' => 'bank_transfer',
+            'order_id' => $order->invoice_number,
+            'status_code' => '200',
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'pending', 'payment_method' => 'cash']);
+        $this->assertDatabaseCount('erp_journal_batches', 0);
     }
 }
