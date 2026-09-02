@@ -22,7 +22,6 @@ class OperationalExpense extends Model
         'company_id',
         'branch_id',
         'account_id',
-        'created_by',
     ];
 
     protected $casts = [
