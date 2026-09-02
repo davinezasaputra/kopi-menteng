@@ -3,7 +3,6 @@
 namespace App\Domain\Accounting\Services;
 
 use App\Domain\Accounting\Models\ErpAccount;
-use App\Domain\Accounting\Services\ErpAccountingService;
 use App\Models\RestockHistory;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Validation\ValidationException;
@@ -35,6 +34,11 @@ class RestockAccountingService
             throw ValidationException::withMessages(['total_cost' => 'Restock total cost must be greater than zero.']);
         }
 
+        $createdBy = auth()->id();
+        if ($createdBy === null) {
+            throw ValidationException::withMessages(['created_by' => 'Authenticated restock actor is required.']);
+        }
+
         $inventory = $this->account($membership->tenant_id, $membership->company_id, '1100');
         $cash = $this->account($membership->tenant_id, $membership->company_id, '1000');
 
@@ -58,7 +62,7 @@ class RestockAccountingService
             ],
             (int) $restock->branch_id,
             $restock->created_at?->toDateString(),
-            $restock->restocked_by_user_id ? (int) $restock->restocked_by_user_id : (int) ($restock->created_by ?? auth()->id()),
+            $createdBy,
         );
     }
 
