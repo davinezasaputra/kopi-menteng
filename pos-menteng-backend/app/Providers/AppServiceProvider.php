@@ -9,7 +9,6 @@ use App\Models\RestockHistory;
 use App\Observers\LeaveObserver;
 use App\Observers\OpExObserver;
 use App\Observers\RestockObserver;
-use App\Observers\SaleObserver;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -39,7 +38,6 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute((int) env('ERP_LOGIN_RATE_LIMIT', 10))->by($request->ip())
         );
 
-        Order::observe(SaleObserver::class);
         OperationalExpense::observe(OpExObserver::class);
         RestockHistory::observe(RestockObserver::class);
         Leave::observe(LeaveObserver::class);
