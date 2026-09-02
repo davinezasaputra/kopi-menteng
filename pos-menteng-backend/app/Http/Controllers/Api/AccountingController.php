@@ -6,6 +6,7 @@ use App\Domain\Accounting\Models\ErpAccount;
 use App\Domain\Accounting\Models\ErpJournalBatch;
 use App\Domain\Accounting\Services\ErpAccountingService;
 use App\Http\Controllers\Controller;
+use App\Services\PermissionService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,15 +16,14 @@ class AccountingController extends Controller
     public function __construct(
         private readonly TenantContext $context,
         private readonly ErpAccountingService $service,
+        private readonly PermissionService $permissions,
     ) {
     }
 
-    /**
-     * Backward-compatible facade for the legacy accounting UI.
-     * Data is now read exclusively from the ERP chart of accounts.
-     */
     public function accounts(): JsonResponse
     {
+        $this->requirePermission('accounting.erp_account.view');
+
         $accounts = ErpAccount::query()
             ->where('tenant_id', $this->context->tenantId())
             ->where('company_id', $this->context->companyId())
@@ -48,6 +48,8 @@ class AccountingController extends Controller
 
     public function addAccount(Request $request): JsonResponse
     {
+        $this->requirePermission('accounting.erp_account.create');
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50'],
             'name' => ['required', 'string', 'max:255'],
@@ -68,12 +70,10 @@ class AccountingController extends Controller
         ], 201);
     }
 
-    /**
-     * Backward-compatible facade. Journal rows are flattened for the current UI,
-     * but the source of truth is now ERP journal batches and lines.
-     */
     public function journals(): JsonResponse
     {
+        $this->requirePermission('accounting.erp_journal.view');
+
         $batches = ErpJournalBatch::query()
             ->where('tenant_id', $this->context->tenantId())
             ->where('company_id', $this->context->companyId())
@@ -105,6 +105,8 @@ class AccountingController extends Controller
 
     public function addJournal(Request $request): JsonResponse
     {
+        $this->requirePermission('accounting.erp_journal.create');
+
         $data = $request->validate([
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'journal_number' => ['nullable', 'string', 'max:80'],
@@ -128,5 +130,14 @@ class AccountingController extends Controller
             'message' => 'Jurnal ERP berhasil dicatat.',
             'data' => $journal,
         ], 201);
+    }
+
+    private function requirePermission(string $permission): void
+    {
+        $user = request()->user();
+
+        if (! $user || ! $this->permissions->hasPermission($user, $permission)) {
+            abort(403, 'Insufficient permission.');
+        }
     }
 }
