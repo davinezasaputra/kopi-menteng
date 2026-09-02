@@ -118,6 +118,7 @@ export default function EnterpriseOperations() {
   const [purchaseOrders, setPurchaseOrders] = useState<Row[]>([]);
   const [receipts, setReceipts] = useState<Row[]>([]);
   const [returns, setReturns] = useState<Row[]>([]);
+  const [invoices, setInvoices] = useState<Row[]>([]);
   const [salesOrders, setSalesOrders] = useState<Row[]>([]);
   const [fulfillments, setFulfillments] = useState<Row[]>([]);
   const [salesInvoices, setSalesInvoices] = useState<Row[]>([]);
@@ -150,7 +151,7 @@ export default function EnterpriseOperations() {
       setWarehouses(Array.from(wh.entries()).map(([id, label]) => ({ id, label })));
       setAccounts(accountRows.map(a => ({ id: String(a.id), label: `${textOf(a,['code'])} · ${textOf(a,['name'])}` })));
       setRoles(roleRows.map(r => ({ id: String(r.id), label: textOf(r,['name','code']) })));
-      setPurchaseOrders(poRows); setReceipts(receiptRows); setReturns(returnRows);
+      setPurchaseOrders(poRows); setReceipts(receiptRows); setInvoices(invoiceRows); setReturns(returnRows);
       setSalesOrders(salesOrderRows); setFulfillments(fulfillmentRows); setSalesInvoices(salesInvoiceRows);
     } catch (e) { console.error('Lookup loading failed', e); }
   };
@@ -255,7 +256,7 @@ export default function EnterpriseOperations() {
     if (!resource?.form) return null;
     switch (resource.form) {
       case 'supplier': return <div className="grid gap-3 md:grid-cols-2">{renderInput('Kode Supplier','code','text',true)}{renderInput('Nama Supplier','name','text',true)}{renderInput('NPWP / Tax ID','tax_id')}{renderInput('Contact Person','contact_name')}{renderInput('Phone','phone')}{renderInput('Email','email')}{renderInput('Payment Terms (hari)','payment_terms_days','number')}<label className="md:col-span-2"><span className="mb-1 block text-xs font-bold text-stone-500">Alamat</span><textarea value={form.address ?? ''} onChange={e => updateForm('address', e.target.value)} rows={3} className="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm" /></label></div>;
-      case 'requisition': return <div className="space-y-4">{renderSelect('Warehouse',form.warehouse_id,warehouses,v=>updateForm('warehouse_id',v),true)}<div>{renderLines('product')}<button type="button" onClick={addLine} className="mt-3 rounded-xl border border-stone-300 px-4 py-2 text-sm font-bold">+ Tambah Barang</button></div>{renderInput('Needed By','needed_by','date')}<label><span className="mb-1 block text-xs font-bold text-stone-500">Alasan</span><textarea value={form.reason ?? ''} onChange={e=>updateForm('reason',e.target.value)} rows={3} className="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm" /></label></div>;
+      case 'requisition': return <div className="space-y-4">{renderSelect('Warehouse',form.warehouse_id,warehouses,v=>updateForm('warehouse_id',v),true)}<div>{renderLines('product')}<button type="button" onClick={addLine} className="mt-3 rounded-xl border border-stone-300 px-4 py-2 text-sm font-bold">+ Tambah Barang</button></div>{renderInput('Needed By','needed_by','date')}<label><span className="mb-1 block text-xs font-bold text-stone-500">Alasan</span><textarea value={form.reason ?? ''} onChange={e => updateForm('reason',e.target.value)} rows={3} className="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm" /></label></div>;
       case 'purchase-order': return <div className="space-y-4"><div className="grid gap-3 md:grid-cols-2">{renderSelect('Supplier',form.supplier_id,suppliers,v=>updateForm('supplier_id',v),true)}{renderSelect('Warehouse',form.warehouse_id,warehouses,v=>updateForm('warehouse_id',v),true)}{renderInput('Expected Date','expected_date','date')}{renderInput('Discount','discount_amount','number')}{renderInput('Tax','tax_amount','number')}</div>{renderLines('product')}<button type="button" onClick={addLine} className="rounded-xl border border-stone-300 px-4 py-2 text-sm font-bold">+ Tambah Barang</button></div>;
       case 'goods-receipt': return <div className="space-y-4">{renderSelect('Purchase Order',form.purchase_order_id,purchaseOrders.map(o=>({id:String(o.id),label:textOf(o,['order_number','number'])})),v=>{ updateForm('purchase_order_id',v); setLineItems([{sourceId:'',quantity:'1',unitCost:'',unitPrice:'',reason:''}]); },true)}{renderSelect('Warehouse',form.warehouse_id,warehouses,v=>updateForm('warehouse_id',v),true)}{renderLines('po-item')}<button type="button" onClick={addLine} className="rounded-xl border border-stone-300 px-4 py-2 text-sm font-bold">+ Tambah Item Penerimaan</button></div>;
       case 'supplier-invoice': return <div className="grid gap-3 md:grid-cols-2">{renderSelect('Goods Receipt',form.goods_receipt_id,receipts.map(r=>({id:String(r.id),label:textOf(r,['receipt_number','number'])})),v=>updateForm('goods_receipt_id',v),true)}{renderInput('Nomor Invoice','invoice_number','text',true)}{renderInput('Tanggal Invoice','invoice_date','date')}{renderInput('Jatuh Tempo','due_date','date')}</div>;
