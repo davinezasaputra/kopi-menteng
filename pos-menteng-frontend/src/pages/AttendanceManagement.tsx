@@ -5,10 +5,28 @@ import { api } from '../core/api/client';
 
 type Employee = { id: string; name: string; position?: string };
 type Attendance = { id: number | string; tanggal: string; status?: string; clock_in?: string | null; clock_out?: string | null; late_minute?: number; early_leave_minute?: number; notes?: string | null; employee?: Employee };
+type ApiBody = { data?: unknown; message?: unknown };
 
 const statusOptions = [
   ['hadir', 'Hadir'], ['sakit', 'Sakit'], ['terlambat', 'Late'], ['absen', 'Absence'],
 ] as const;
+
+function errorMessage(error: unknown): string {
+  if (!error || typeof error !== 'object' || !('response' in error)) return '';
+  const response = (error as { response?: { data?: ApiBody } }).response;
+  return typeof response?.data?.message === 'string' ? response.data.message : '';
+}
+
+function unwrapRows<T>(body: unknown): T[] {
+  if (!body || typeof body !== 'object') return [];
+  const data = (body as { data?: unknown }).data;
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === 'object') {
+    const nested = (data as { data?: unknown }).data;
+    if (Array.isArray(nested)) return nested as T[];
+  }
+  return [];
+}
 
 export default function AttendanceManagement() {
   const [rows, setRows] = useState<Attendance[]>([]);
@@ -27,9 +45,9 @@ export default function AttendanceManagement() {
     setLoading(true);
     try {
       const [attendanceResponse, employeeResponse] = await Promise.all([api.get('/hrm/attendances', { params: { per_page: 100 } }), api.get('/employees')]);
-      const unwrap = (body: any) => Array.isArray(body?.data) ? body.data : Array.isArray(body?.data?.data) ? body.data.data : [];
-      setRows(unwrap(attendanceResponse.data)); setEmployees(unwrap(employeeResponse.data));
-    } catch (error: any) { toast.error(error?.response?.data?.message ?? 'Attendance gagal dimuat.'); }
+      setRows(unwrapRows<Attendance>(attendanceResponse.data));
+      setEmployees(unwrapRows<Employee>(employeeResponse.data));
+    } catch (error: unknown) { toast.error(errorMessage(error) || 'Attendance gagal dimuat.'); }
     finally { setLoading(false); }
   };
 
@@ -40,21 +58,21 @@ export default function AttendanceManagement() {
     try {
       await api.post(`/hrm/attendances/${row.id}/status`, { status: nextStatus, notes: row.notes ?? undefined, late_minute: nextStatus === 'terlambat' ? (row.late_minute ?? 0) : 0 });
       toast.success('Status attendance diperbarui.'); await fetchData();
-    } catch (error: any) { toast.error(error?.response?.data?.message ?? 'Status attendance gagal diubah.'); }
+    } catch (error: unknown) { toast.error(errorMessage(error) || 'Status attendance gagal diubah.'); }
     finally { setSavingId(null); }
   };
 
   const clock = async (kind: 'clock-in' | 'clock-out') => {
     if (!employeeId) return toast.error('Pilih karyawan dahulu.');
     try { await api.post(`/hrm/attendance/${kind}`, { employee_id: employeeId }); toast.success(kind === 'clock-in' ? 'Clock-in berhasil.' : 'Clock-out berhasil.'); await fetchData(); }
-    catch (error: any) { toast.error(error?.response?.data?.message ?? `${kind} gagal.`); }
+    catch (error: unknown) { toast.error(errorMessage(error) || `${kind} gagal.`); }
   };
 
   const submitOffDuty = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!offDuty.employee_id || !offDuty.notes.trim()) return toast.error('Karyawan dan alasan off-duty wajib diisi.');
     try { await api.post('/hrm/attendance/off-duty', offDuty); toast.success('Off-duty berhasil dicatat.'); setShowOffDuty(false); setOffDuty(current => ({ ...current, notes: '' })); await fetchData(); }
-    catch (error: any) { toast.error(error?.response?.data?.message ?? 'Off-duty gagal dicatat.'); }
+    catch (error: unknown) { toast.error(errorMessage(error) || 'Off-duty gagal dicatat.'); }
   };
 
   const exportAttendance = async () => {
