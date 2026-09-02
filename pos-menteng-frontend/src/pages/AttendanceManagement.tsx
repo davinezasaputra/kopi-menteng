@@ -3,109 +3,32 @@ import toast from 'react-hot-toast';
 import AdminSidebar from '../components/AdminSidebar';
 import { api } from '../core/api/client';
 
-type Employee = { id: string; name: string; position?: string };
+type Employee = { id: string; name: string; position?: string; status?: string };
 type Attendance = { id: number | string; tanggal: string; status?: string; clock_in?: string | null; clock_out?: string | null; late_minute?: number; early_leave_minute?: number; notes?: string | null; employee?: Employee };
 type ApiBody = { data?: unknown; message?: unknown };
 
-const statusOptions = [
-  ['hadir', 'Hadir'], ['sakit', 'Sakit'], ['terlambat', 'Late'], ['absen', 'Absence'],
-] as const;
-
-function errorMessage(error: unknown): string {
-  if (!error || typeof error !== 'object' || !('response' in error)) return '';
-  const response = (error as { response?: { data?: ApiBody } }).response;
-  return typeof response?.data?.message === 'string' ? response.data.message : '';
-}
-
-function unwrapRows<T>(body: unknown): T[] {
-  if (!body || typeof body !== 'object') return [];
-  const data = (body as { data?: unknown }).data;
-  if (Array.isArray(data)) return data as T[];
-  if (data && typeof data === 'object') {
-    const nested = (data as { data?: unknown }).data;
-    if (Array.isArray(nested)) return nested as T[];
-  }
-  return [];
-}
+const statusOptions = [['hadir','Hadir'],['sakit','Sakit'],['terlambat','Terlambat'],['absen','Absen']] as const;
+function errorMessage(error: unknown): string { if (!error || typeof error !== 'object' || !('response' in error)) return ''; const response=(error as {response?:{data?:ApiBody}}).response; return typeof response?.data?.message==='string'?response.data.message:''; }
+function unwrapRows<T>(body: unknown): T[] { if (!body || typeof body!=='object') return []; const data=(body as {data?:unknown}).data; if(Array.isArray(data))return data as T[]; if(data&&typeof data==='object'){const nested=(data as {data?:unknown}).data;if(Array.isArray(nested))return nested as T[];} return []; }
+function jakartaToday(): string { const parts=new Intl.DateTimeFormat('en',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()); const get=(type:string)=>parts.find(p=>p.type===type)?.value??''; return `${get('year')}-${get('month')}-${get('day')}`; }
+function clockLabel(value?: string|null): string { return value?new Date(value).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}):'-'; }
 
 export default function AttendanceManagement() {
-  const [rows, setRows] = useState<Attendance[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [employeeId, setEmployeeId] = useState('');
-  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
-  const [status, setStatus] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [showOffDuty, setShowOffDuty] = useState(false);
-  const [offDuty, setOffDuty] = useState({ employee_id: '', tanggal: new Date().toISOString().slice(0, 10), notes: '' });
-
-  const filtered = useMemo(() => rows.filter(row => !employeeId || row.employee?.id === employeeId).filter(row => !status || row.status === status), [rows, employeeId, status]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [attendanceResponse, employeeResponse] = await Promise.all([api.get('/hrm/attendances', { params: { per_page: 100 } }), api.get('/employees')]);
-      setRows(unwrapRows<Attendance>(attendanceResponse.data));
-      setEmployees(unwrapRows<Employee>(employeeResponse.data));
-    } catch (error: unknown) { toast.error(errorMessage(error) || 'Attendance gagal dimuat.'); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { void fetchData(); }, []);
-
-  const changeStatus = async (row: Attendance, nextStatus: string) => {
-    setSavingId(String(row.id));
-    try {
-      await api.post(`/hrm/attendances/${row.id}/status`, { status: nextStatus, notes: row.notes ?? undefined, late_minute: nextStatus === 'terlambat' ? (row.late_minute ?? 0) : 0 });
-      toast.success('Status attendance diperbarui.'); await fetchData();
-    } catch (error: unknown) { toast.error(errorMessage(error) || 'Status attendance gagal diubah.'); }
-    finally { setSavingId(null); }
-  };
-
-  const clock = async (kind: 'clock-in' | 'clock-out') => {
-    if (!employeeId) return toast.error('Pilih karyawan dahulu.');
-    try { await api.post(`/hrm/attendance/${kind}`, { employee_id: employeeId }); toast.success(kind === 'clock-in' ? 'Clock-in berhasil.' : 'Clock-out berhasil.'); await fetchData(); }
-    catch (error: unknown) { toast.error(errorMessage(error) || `${kind} gagal.`); }
-  };
-
-  const submitOffDuty = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!offDuty.employee_id || !offDuty.notes.trim()) return toast.error('Karyawan dan alasan off-duty wajib diisi.');
-    try { await api.post('/hrm/attendance/off-duty', offDuty); toast.success('Off-duty berhasil dicatat.'); setShowOffDuty(false); setOffDuty(current => ({ ...current, notes: '' })); await fetchData(); }
-    catch (error: unknown) { toast.error(errorMessage(error) || 'Off-duty gagal dicatat.'); }
-  };
-
-  const exportAttendance = async () => {
-    const [year, month] = period.split('-');
-    try {
-      const response = await api.get('/hrm/attendances/export', { params: { year, month }, responseType: 'blob' });
-      const url = URL.createObjectURL(response.data); const link = document.createElement('a'); link.href = url; link.download = `attendance_${period}.csv`; link.click(); URL.revokeObjectURL(url);
-    } catch { toast.error('Export attendance gagal.'); }
-  };
-
-  return <div className="flex min-h-screen bg-stone-50 text-stone-800">
-    <AdminSidebar activePage="attendance-management" />
-    <main className="flex-1 p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div><div className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">HRM · Attendance</div><h1 className="mt-1 text-2xl font-black text-stone-900">Kontrol Absensi Karyawan</h1><p className="mt-1 text-sm text-stone-500">Hadir, sakit, late, absence, clock-in/out, off-duty, dan export.</p></div>
-          <div className="flex flex-wrap gap-2"><button onClick={() => setShowOffDuty(true)} className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800">🛌 Off-duty</button><button onClick={exportAttendance} className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-bold text-white">📤 Export CSV</button></div>
-        </div>
-
-        <section className="mb-5 grid gap-3 rounded-2xl border border-stone-200 bg-white p-4 md:grid-cols-4">
-          <label className="text-sm font-bold text-stone-600">Periode<input type="month" value={period} onChange={e => setPeriod(e.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 font-normal" /></label>
-          <label className="text-sm font-bold text-stone-600">Karyawan<select value={employeeId} onChange={e => setEmployeeId(e.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 font-normal"><option value="">Semua karyawan</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
-          <label className="text-sm font-bold text-stone-600">Status<select value={status} onChange={e => setStatus(e.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 font-normal"><option value="">Semua status</option>{statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}<option value="offduty">Off-duty</option><option value="pulang_cepat">Pulang cepat</option></select></label>
-          <div className="flex items-end gap-2"><button onClick={() => void clock('clock-in')} className="flex-1 rounded-xl border border-green-300 bg-green-50 px-3 py-2.5 text-sm font-bold text-green-700">▶ Clock-in</button><button onClick={() => void clock('clock-out')} className="flex-1 rounded-xl border border-blue-300 bg-blue-50 px-3 py-2.5 text-sm font-bold text-blue-700">■ Clock-out</button></div>
-        </section>
-
-        <section className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4"><div className="font-black">Daftar Attendance</div><div className="text-xs text-stone-400">{filtered.length} data</div></div>
-          {loading ? <div className="p-8 text-center text-stone-500">Memuat attendance...</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-stone-50 text-xs uppercase text-stone-500"><tr><th className="px-4 py-3 text-left">Tanggal</th><th className="px-4 py-3 text-left">Karyawan</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">In</th><th className="px-4 py-3 text-left">Out</th><th className="px-4 py-3 text-left">Late</th><th className="px-4 py-3 text-left">Action</th></tr></thead><tbody>{filtered.map(row => <tr key={row.id} className="border-t border-stone-100"><td className="px-4 py-3">{String(row.tanggal).slice(0, 10)}</td><td className="px-4 py-3"><div className="font-bold">{row.employee?.name ?? '-'}</div><div className="text-xs text-stone-400">{row.employee?.position ?? '-'}</div></td><td className="px-4 py-3"><span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold">{row.status ?? '-'}</span></td><td className="px-4 py-3">{row.clock_in ? new Date(row.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}</td><td className="px-4 py-3">{row.clock_out ? new Date(row.clock_out).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}</td><td className="px-4 py-3">{row.late_minute ?? 0} m</td><td className="px-4 py-3"><select disabled={savingId === String(row.id)} value={row.status ?? ''} onChange={e => void changeStatus(row, e.target.value)} className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs"><option value="">Pilih</option>{statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td></tr>)}</tbody></table></div>}
-        </section>
-      </div>
-    </main>
-
-    {showOffDuty && <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 p-5"><form onSubmit={submitOffDuty} className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-black">Form Off-duty</h2><p className="text-sm text-stone-500">Tetapkan satu karyawan sebagai off-duty pada tanggal tertentu.</p></div><button type="button" onClick={() => setShowOffDuty(false)} className="text-stone-400">✕</button></div><div className="space-y-4"><label className="block text-sm font-bold">Karyawan<select value={offDuty.employee_id} onChange={e => setOffDuty({ ...offDuty, employee_id: e.target.value })} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5"><option value="">Pilih karyawan</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name} · {e.position}</option>)}</select></label><label className="block text-sm font-bold">Tanggal<input type="date" value={offDuty.tanggal} onChange={e => setOffDuty({ ...offDuty, tanggal: e.target.value })} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5" /></label><label className="block text-sm font-bold">Alasan / Catatan<textarea value={offDuty.notes} onChange={e => setOffDuty({ ...offDuty, notes: e.target.value })} rows={4} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5" /></label></div><button className="mt-5 w-full rounded-xl bg-stone-900 px-4 py-3 font-bold text-white">Simpan Off-duty</button></form></div>}
-  </div>;
+ const [rows,setRows]=useState<Attendance[]>([]); const [employees,setEmployees]=useState<Employee[]>([]); const [employeeId,setEmployeeId]=useState(''); const [period,setPeriod]=useState(jakartaToday().slice(0,7)); const [status,setStatus]=useState(''); const [loading,setLoading]=useState(true); const [savingId,setSavingId]=useState<string|null>(null); const [showOffDuty,setShowOffDuty]=useState(false); const [offDuty,setOffDuty]=useState({employee_id:'',tanggal:jakartaToday(),notes:''});
+ const filtered=useMemo(()=>rows.filter(row=>!employeeId||row.employee?.id===employeeId).filter(row=>!status||row.status===status),[rows,employeeId,status]);
+ const todayRows=useMemo(()=>{const today=jakartaToday(); const map=new Map<string,Attendance>();rows.filter(row=>String(row.tanggal).slice(0,10)===today).forEach(row=>{if(row.employee?.id)map.set(row.employee.id,row);});return map;},[rows]);
+ const fetchData=async()=>{setLoading(true);try{const [attendanceResponse,employeeResponse]=await Promise.all([api.get('/hrm/attendances',{params:{per_page:100}}),api.get('/employees')]);setRows(unwrapRows<Attendance>(attendanceResponse.data));setEmployees(unwrapRows<Employee>(employeeResponse.data));}catch(error:unknown){toast.error(errorMessage(error)||'Attendance gagal dimuat.');}finally{setLoading(false);}};
+ useEffect(()=>{void fetchData();},[]);
+ const clock=async(employeeIdValue:string,kind:'clock-in'|'clock-out')=>{setSavingId(employeeIdValue+kind);try{await api.post(`/hrm/attendance/${kind}`,{employee_id:employeeIdValue});toast.success(kind==='clock-in'?'Clock-in berhasil.':'Clock-out berhasil.');await fetchData();}catch(error:unknown){toast.error(errorMessage(error)||`${kind} gagal.`);}finally{setSavingId(null);}};
+ const changeStatus=async(row:Attendance,nextStatus:string)=>{setSavingId(String(row.id));try{await api.post(`/hrm/attendances/${row.id}/status`,{status:nextStatus,notes:row.notes??undefined,late_minute:nextStatus==='terlambat'?(row.late_minute??0):0});toast.success('Status attendance diperbarui.');await fetchData();}catch(error:unknown){toast.error(errorMessage(error)||'Status attendance gagal diubah.');}finally{setSavingId(null);}};
+ const submitOffDuty=async(event:React.FormEvent)=>{event.preventDefault();if(!offDuty.employee_id||!offDuty.notes.trim())return toast.error('Karyawan dan alasan off-duty wajib diisi.');try{await api.post('/hrm/attendance/off-duty',offDuty);toast.success('Off-duty berhasil dicatat.');setShowOffDuty(false);setOffDuty(current=>({...current,notes:''}));await fetchData();}catch(error:unknown){toast.error(errorMessage(error)||'Off-duty gagal dicatat.');}};
+ const exportAttendance=async()=>{const [year,month]=period.split('-');try{const response=await api.get('/hrm/attendances/export',{params:{year,month},responseType:'blob'});const url=URL.createObjectURL(response.data);const link=document.createElement('a');link.href=url;link.download=`attendance_${period}.csv`;link.click();URL.revokeObjectURL(url);}catch{toast.error('Export attendance gagal.');}};
+ return <div className="flex min-h-screen bg-stone-50 text-stone-800"><AdminSidebar activePage="attendance-management"/><main className="flex-1 p-6 lg:p-8"><div className="mx-auto max-w-7xl">
+  <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><div className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">HRM · Attendance</div><h1 className="mt-1 text-2xl font-black text-stone-900">List Karyawan & Aksi Absensi</h1><p className="mt-1 text-sm text-stone-500">Setiap karyawan tersedia dengan aksi Clock-in dan Clock-out langsung dari daftar HRD.</p></div><div className="flex flex-wrap gap-2"><button onClick={()=>setShowOffDuty(true)} className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800">🛌 Off-duty</button><button onClick={()=>void exportAttendance()} className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-bold text-white">📤 Export CSV</button></div></div>
+  <section className="mb-5 grid gap-3 rounded-2xl border border-stone-200 bg-white p-4 md:grid-cols-3"><label className="text-sm font-bold text-stone-600">Periode<input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 font-normal"/></label><label className="text-sm font-bold text-stone-600">Filter Karyawan<select value={employeeId} onChange={e=>setEmployeeId(e.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 font-normal"><option value="">Semua karyawan</option>{employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></label><label className="text-sm font-bold text-stone-600">Filter Status<select value={status} onChange={e=>setStatus(e.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 font-normal"><option value="">Semua status</option>{statusOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}<option value="offduty">Off-duty</option><option value="pulang_cepat">Pulang cepat</option></select></label></section>
+  <section className="mb-6 overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-stone-100 px-5 py-4"><div><div className="font-black">Daftar Karyawan</div><div className="text-xs text-stone-400">Aksi mengacu pada attendance hari ini ({jakartaToday()})</div></div><div className="text-xs font-bold text-stone-400">{employees.length} karyawan</div></div>{loading?<div className="p-8 text-center text-stone-500">Memuat karyawan...</div>:<div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-stone-50 text-xs uppercase text-stone-500"><tr><th className="px-4 py-3 text-left">Karyawan</th><th className="px-4 py-3 text-left">Status Hari Ini</th><th className="px-4 py-3 text-left">Clock In</th><th className="px-4 py-3 text-left">Clock Out</th><th className="px-4 py-3 text-center">Aksi Absensi</th></tr></thead><tbody>{employees.map(employee=>{const attendance=todayRows.get(employee.id);const busy=savingId===employee.id+'clock-in'||savingId===employee.id+'clock-out';const canIn=!attendance;const canOut=!!attendance&&!attendance.clock_out&&attendance.status!=='offduty'&&attendance.status!=='absen';return <tr key={employee.id} className="border-t border-stone-100 hover:bg-stone-50"><td className="px-4 py-4"><div className="font-bold text-stone-800">{employee.name}</div><div className="text-xs text-stone-400">{employee.position||'—'}</div></td><td className="px-4 py-4">{attendance?<span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold">{attendance.status||'—'}</span>:<span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">Belum absen</span>}</td><td className="px-4 py-4">{clockLabel(attendance?.clock_in)}</td><td className="px-4 py-4">{clockLabel(attendance?.clock_out)}</td><td className="px-4 py-4"><div className="flex justify-center gap-2">{canIn&&<button disabled={busy} onClick={()=>void clock(employee.id,'clock-in')} className="rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-green-700 hover:bg-green-100 disabled:opacity-50">▶ Absen Masuk</button>}{canOut&&<button disabled={busy} onClick={()=>void clock(employee.id,'clock-out')} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">■ Absen Pulang</button>}{!canIn&&!canOut&&<span className="rounded-lg bg-stone-100 px-3 py-2 text-xs font-bold text-stone-500">Selesai</span>}</div></td></tr>})}</tbody></table></div>}</section>
+  <section className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-stone-100 px-5 py-4"><div className="font-black">Riwayat Attendance</div><div className="text-xs text-stone-400">{filtered.length} data</div></div>{loading?<div className="p-8 text-center text-stone-500">Memuat attendance...</div>:<div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-stone-50 text-xs uppercase text-stone-500"><tr><th className="px-4 py-3 text-left">Tanggal</th><th className="px-4 py-3 text-left">Karyawan</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">In</th><th className="px-4 py-3 text-left">Out</th><th className="px-4 py-3 text-left">Late</th><th className="px-4 py-3 text-left">Action</th></tr></thead><tbody>{filtered.map(row=><tr key={row.id} className="border-t border-stone-100"><td className="px-4 py-3">{String(row.tanggal).slice(0,10)}</td><td className="px-4 py-3"><div className="font-bold">{row.employee?.name??'-'}</div><div className="text-xs text-stone-400">{row.employee?.position??'-'}</div></td><td className="px-4 py-3"><span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold">{row.status??'-'}</span></td><td className="px-4 py-3">{clockLabel(row.clock_in)}</td><td className="px-4 py-3">{clockLabel(row.clock_out)}</td><td className="px-4 py-3">{row.late_minute??0} m</td><td className="px-4 py-3"><select disabled={savingId===String(row.id)} value={row.status??''} onChange={e=>void changeStatus(row,e.target.value)} className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs"><option value="">Pilih</option>{statusOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></td></tr>)}</tbody></table></div>}</section>
+ </div></main>
+ {showOffDuty&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 p-5"><form onSubmit={submitOffDuty} className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-black">Form Off-duty</h2><p className="text-sm text-stone-500">Tetapkan karyawan off-duty pada tanggal tertentu.</p></div><button type="button" onClick={()=>setShowOffDuty(false)} className="text-stone-400">✕</button></div><div className="space-y-4"><label className="block text-sm font-bold">Karyawan<select value={offDuty.employee_id} onChange={e=>setOffDuty({...offDuty,employee_id:e.target.value})} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5"><option value="">Pilih karyawan</option>{employees.map(e=><option key={e.id} value={e.id}>{e.name} · {e.position}</option>)}</select></label><label className="block text-sm font-bold">Tanggal<input type="date" value={offDuty.tanggal} onChange={e=>setOffDuty({...offDuty,tanggal:e.target.value})} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5"/></label><label className="block text-sm font-bold">Alasan / Catatan<textarea value={offDuty.notes} onChange={e=>setOffDuty({...offDuty,notes:e.target.value})} rows={4} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5"/></label></div><button className="mt-5 w-full rounded-xl bg-stone-900 px-4 py-3 font-bold text-white">Simpan Off-duty</button></form></div>}
+ </div>;
 }
