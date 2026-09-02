@@ -23,11 +23,29 @@ export default function AdminLogin() {
         password,
       });
 
-      if (response.data.status === 'success') {
-        localStorage.setItem('token', response.data.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.data.user));
-        navigate('/dashboard');
+      if (response.data.status !== 'success') {
+        setError(response.data.message || 'Login gagal.');
+        return;
       }
+
+      const data = response.data.data;
+      const context = data.context ?? {};
+      const permissions = Array.isArray(data.permissions) ? data.permissions : [];
+
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('permissions', JSON.stringify(permissions));
+      localStorage.setItem('erp_role', String(context.role ?? ''));
+      localStorage.setItem('erp_context', JSON.stringify({
+        tenant_id: context.tenant_id ?? null,
+        company_id: context.company_id ?? null,
+        branch_id: context.branch_id ?? null,
+        location_id: context.location_id ?? null,
+        location_type: context.location_type ?? null,
+      }));
+      localStorage.removeItem('foundation_loaded');
+
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Terjadi kesalahan koneksi ke server');
     } finally {
