@@ -6,6 +6,7 @@ use App\Domain\Accounting\Models\ErpAccount;
 use App\Domain\Accounting\Models\ErpJournalBatch;
 use App\Domain\Accounting\Models\FiscalPeriod;
 use App\Domain\Hrm\Services\PayrollAccountingService;
+use App\Domain\Identity\Models\Membership;
 use App\Domain\Identity\Models\Permission;
 use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Branch;
@@ -181,9 +182,13 @@ class PayrollAccountingClosingSecurityTest extends TestCase
         $otherBranch = Branch::create(['tenant_id' => $tenant->id, 'company_id' => $otherCompany->id, 'code' => 'BR-PA-2', 'name' => 'Other Payroll Branch']);
         $payroll = $this->payroll($tenant, $otherCompany, $otherBranch, '2026-09');
 
-        $this->app->make(\App\Support\Tenancy\TenantContext::class)->setMembership(
-            $branch->memberships()->firstOrFail()
-        );
+        $membership = Membership::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('company_id', $company->id)
+            ->where('branch_id', $branch->id)
+            ->firstOrFail();
+
+        $this->app->make(\App\Support\Tenancy\TenantContext::class)->setMembership($membership);
 
         $this->expectException(\Illuminate\Validation\ValidationException::class);
         $this->app->make(PayrollAccountingService::class)->postPayment($payroll->forceFill(['is_paid' => true]));
