@@ -4,7 +4,6 @@ namespace App\Providers;
 
 use App\Models\Leave;
 use App\Models\OperationalExpense;
-use App\Models\Order;
 use App\Models\RestockHistory;
 use App\Observers\LeaveObserver;
 use App\Observers\OpExObserver;
