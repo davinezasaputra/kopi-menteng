@@ -61,7 +61,7 @@ class OperationalExpenseAccountingService
             ],
             (int) $expense->branch_id,
             $expense->expense_date->toDateString(),
-            $expense->created_by ? (int) $expense->created_by : (int) $membership->user_id,
+            (int) $membership->user_id,
         );
     }
 
