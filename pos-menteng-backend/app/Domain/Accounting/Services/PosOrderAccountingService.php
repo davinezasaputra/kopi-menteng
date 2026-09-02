@@ -63,6 +63,7 @@ class PosOrderAccountingService
             ],
             (int) $order->branch_id,
             $order->created_at?->toDateString(),
+            $order->user_id ? (int) $order->user_id : null,
         );
     }
 
