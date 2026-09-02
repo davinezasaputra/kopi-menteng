@@ -100,7 +100,7 @@ class PosOrderAccountingClosingSecurityTest extends TestCase
             'status' => 'open',
         ]);
 
-        return Order::create([
+        $order = Order::create([
             'tenant_id' => $tenant->id,
             'company_id' => $company->id,
             'branch_id' => $branch->id,
@@ -115,9 +115,15 @@ class PosOrderAccountingClosingSecurityTest extends TestCase
             'net_profit' => 100000,
             'payment_method' => 'cash',
             'status' => $status,
-            'created_at' => Carbon::parse('2026-09-15 10:00:00'),
-            'updated_at' => Carbon::parse('2026-09-15 10:00:00'),
         ]);
+
+        $businessTimestamp = Carbon::parse('2026-09-15 10:00:00');
+        $order->forceFill([
+            'created_at' => $businessTimestamp,
+            'updated_at' => $businessTimestamp,
+        ])->saveQuietly();
+
+        return $order->fresh();
     }
 
     private function setContext(Tenant $tenant, Company $company, Branch $branch): void
