@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Accounting\Models\ErpAccount;
 use App\Domain\Accounting\Models\FiscalPeriod;
 use App\Domain\Identity\Models\Permission;
 use App\Domain\Identity\Models\Role;
@@ -154,6 +155,36 @@ class PayrollAutomationApiTest extends TestCase
         Queue::fake();
         Storage::fake('public');
 
+        ErpAccount::create([
+            'tenant_id' => $this->tenant->id,
+            'company_id' => $this->company->id,
+            'code' => '5200',
+            'name' => 'Salary Expense',
+            'type' => 'expense',
+            'normal_balance' => 'debit',
+            'is_postable' => true,
+            'is_active' => true,
+        ]);
+        ErpAccount::create([
+            'tenant_id' => $this->tenant->id,
+            'company_id' => $this->company->id,
+            'code' => '1000',
+            'name' => 'Cash Payroll',
+            'type' => 'asset',
+            'normal_balance' => 'debit',
+            'is_postable' => true,
+            'is_active' => true,
+        ]);
+        FiscalPeriod::create([
+            'tenant_id' => $this->tenant->id,
+            'company_id' => $this->company->id,
+            'year' => 2026,
+            'month' => 9,
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2026-09-30',
+            'status' => 'open',
+        ]);
+
         $payroll = Payroll::create([
             'tenant_id' => $this->tenant->id,
             'company_id' => $this->company->id,
@@ -165,16 +196,6 @@ class PayrollAutomationApiTest extends TestCase
             'deduction' => 0,
             'attendance_deduction' => 0,
             'total_salary' => 5000000,
-        ]);
-
-        FiscalPeriod::create([
-            'tenant_id' => $this->tenant->id,
-            'company_id' => $this->company->id,
-            'year' => 2026,
-            'month' => 9,
-            'starts_on' => '2026-09-01',
-            'ends_on' => '2026-09-30',
-            'status' => 'open',
         ]);
 
         $response = $this->actingAs($this->user)
