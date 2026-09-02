@@ -12,9 +12,16 @@ type BillTemplate = {
 };
 type AttendanceSetting = { clock_in_time: string; clock_in_grace_minutes: number; clock_out_time: string; clock_out_grace_minutes: number; auto_absence_enabled: boolean };
 type Penalty = { penalty_type: 'late' | 'absence'; duration_threshold: string; amount_type: 'fixed' | 'percentage'; amount: number | string; is_active: boolean };
+type ApiResponseBody = { data?: unknown; message?: unknown };
 
 const defaultBill: BillTemplate = { business_name: 'KOPI MENTENG', address: '', phone: '', logo_url: '', bill_title: 'NOTA PENJUALAN', bill_subtitle: '', ppn_rate: 11, paper_width: '80mm', show_cashier: true, show_customer: true, show_order_type: true, show_tax: true, show_discount: true, show_sku: false, show_change: true, footer_text: 'Terima kasih atas kunjungan Anda!', wifi_text: '', is_active: true };
 const defaultAttendance: AttendanceSetting = { clock_in_time: '08:00', clock_in_grace_minutes: 15, clock_out_time: '17:00', clock_out_grace_minutes: 0, auto_absence_enabled: false };
+
+function errorMessage(error: unknown): string {
+  if (!error || typeof error !== 'object' || !('response' in error)) return '';
+  const response = (error as { response?: { data?: ApiResponseBody } }).response;
+  return typeof response?.data?.message === 'string' ? response.data.message : '';
+}
 
 export default function BusinessRulesSettings() {
   const navigate = useNavigate();
@@ -40,14 +47,14 @@ export default function BusinessRulesSettings() {
   const saveBill = async () => {
     setSaving(true);
     try { const response = await api.put('/pos/receipt-template', bill); setBill({ ...bill, ...response.data?.data }); toast.success('Bill template & PPN tersimpan.'); }
-    catch (error: any) { toast.error(error?.response?.data?.message ?? 'Bill template gagal disimpan.'); }
+    catch (error: unknown) { toast.error(errorMessage(error) || 'Bill template gagal disimpan.'); }
     finally { setSaving(false); }
   };
 
   const saveAttendance = async () => {
     setSaving(true);
     try { await api.patch('/hrm/attendance/settings', attendance); await api.put('/hrm/attendance/penalties', { penalties }); toast.success('Aturan clock-in, clock-out, dan denda tersimpan.'); }
-    catch (error: any) { toast.error(error?.response?.data?.message ?? 'Aturan absensi gagal disimpan.'); }
+    catch (error: unknown) { toast.error(errorMessage(error) || 'Aturan absensi gagal disimpan.'); }
     finally { setSaving(false); }
   };
 
