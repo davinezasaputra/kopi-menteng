@@ -20,9 +20,11 @@ class TenantQuotaService
     public function assertCanCreate(int $tenantId, string $resource): void
     {
         $license = $this->license($tenantId);
+        // Keep legacy tenants functional until a subscription/license is provisioned.
+        if (! $license) return;
 
-        if (! $license || ! $license->isActive()) {
-            throw new HttpException(422, 'Lisensi tenant tidak aktif atau belum dikonfigurasi.', null, ['X-Quota-Code' => 'LICENSE_INACTIVE']);
+        if (! $license->isActive()) {
+            throw new HttpException(422, 'Lisensi tenant tidak aktif.', null, ['X-Quota-Code' => 'LICENSE_INACTIVE']);
         }
 
         $limit = match ($resource) {
@@ -43,13 +45,7 @@ class TenantQuotaService
         };
 
         if ($usage >= $limit) {
-            $label = match ($resource) {
-                'user' => 'user',
-                'company' => 'company',
-                'branch' => 'branch',
-                'location' => 'location',
-            };
-            throw new HttpException(422, "Batas {$label} lisensi tercapai ({$limit}). Upgrade lisensi untuk menambah {$label}.", null, [
+            throw new HttpException(422, "Batas {$resource} lisensi tercapai ({$limit}). Upgrade lisensi untuk menambah {$resource}.", null, [
                 'X-Quota-Code' => 'QUOTA_EXCEEDED',
                 'X-Quota-Resource' => $resource,
                 'X-Quota-Limit' => (string) $limit,
