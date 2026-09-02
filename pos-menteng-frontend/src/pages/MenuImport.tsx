@@ -4,12 +4,22 @@ import toast from 'react-hot-toast';
 import AdminSidebar from '../components/AdminSidebar';
 import { api } from '../core/api/client';
 
+type ImportFailure = { row: number; errors: string[] };
+type ImportResult = { created_count: number; updated_count: number; failed_count: number; failed_rows?: ImportFailure[] };
+type ApiErrorBody = { message?: unknown };
+
+function errorMessage(error: unknown): string {
+  if (!error || typeof error !== 'object' || !('response' in error)) return '';
+  const response = (error as { response?: { data?: ApiErrorBody } }).response;
+  return typeof response?.data?.message === 'string' ? response.data.message : '';
+}
+
 export default function MenuImport() {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ created_count: number; updated_count: number; failed_count: number; failed_rows?: { row: number; errors: string[] }[] } | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
 
   const chooseFile = (selected: File | null) => {
     if (!selected) return;
@@ -28,11 +38,12 @@ export default function MenuImport() {
       const body = new FormData();
       body.append('file', file);
       const response = await api.post('/inventory/menu-import', body, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setResult(response.data);
+      setResult(response.data as ImportResult);
       toast.success(response.data?.message ?? 'Import menu selesai.');
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message ?? 'Import menu gagal.');
-      setResult(error?.response?.data ?? null);
+    } catch (error: unknown) {
+      toast.error(errorMessage(error) || 'Import menu gagal.');
+      const body = error && typeof error === 'object' && 'response' in error ? (error as { response?: { data?: unknown } }).response?.data : null;
+      setResult(body && typeof body === 'object' ? body as ImportResult : null);
     } finally {
       setBusy(false);
     }
