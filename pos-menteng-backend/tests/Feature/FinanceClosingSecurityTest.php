@@ -39,12 +39,16 @@ class FinanceClosingSecurityTest extends TestCase
         ]);
 
         foreach ($permissions as $name) {
-            $role->permissions()->attach(Permission::create([
-                'module'=>'accounting',
-                'resource'=>'finance',
-                'action'=>str_replace(['accounting.','fiscal_period.','period.','erp_journal.'],'',$name),
-                'name'=>$name,
-            ]));
+            $permission = Permission::firstOrCreate(
+                ['name'=>$name],
+                [
+                    'module'=>'accounting',
+                    'resource'=>'finance',
+                    'action'=>str_replace(['accounting.','fiscal_period.','period.','erp_journal.'],'',$name),
+                ],
+            );
+
+            $role->permissions()->syncWithoutDetaching([$permission->id]);
         }
 
         $user = User::factory()->create([
