@@ -51,6 +51,11 @@ class TenantLicense extends Model
     {
         if (! $this->isActive()) return false;
 
+        // Organization/company/branch/location structure is core tenant administration.
+        // An active tenant license may manage its own organization hierarchy; plan limits
+        // such as max_branches remain enforced by the organization service layer.
+        if (str_starts_with($permission, 'organization.')) return true;
+
         $prefixMap = [
             'pos.' => 'pos',
             'inventory.' => 'inventory',
@@ -61,7 +66,6 @@ class TenantLicense extends Model
             'users.' => 'administration',
             'rbac.' => 'administration',
             'audit.' => 'audit',
-            'organization.' => 'organization',
         ];
 
         foreach ($prefixMap as $prefix => $feature) {
