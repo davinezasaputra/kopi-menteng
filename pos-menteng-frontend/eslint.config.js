@@ -33,6 +33,13 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // These rules are kept visible as warnings while the frontend migrates
+      // existing fetch-on-mount and derived-state patterns to dedicated hooks.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/purity': 'warn',
+    },
   },
   {
     files: legacyPages,
@@ -44,6 +51,7 @@ export default defineConfig([
       'react-hooks/immutability': 'off',
       'react-hooks/exhaustive-deps': 'off',
       'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/purity': 'off',
     },
   },
 ])
