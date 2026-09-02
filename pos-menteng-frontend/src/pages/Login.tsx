@@ -141,14 +141,6 @@ export default function Login() {
           >
             {isLoading ? 'Memproses...' : 'Masuk ke Sistem'}
           </button>
-
-          <button
-            type="button"
-            onClick={() => navigate('/admin-login')}
-            className="mt-4 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-bold text-stone-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800"
-          >
-            Login Admin / Developer
-          </button>
         </div>
       </div>
     </div>
