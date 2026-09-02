@@ -107,7 +107,6 @@ class FinanceController extends Controller
                 'company_id' => $this->context->companyId(),
                 'branch_id' => $this->context->branchId(),
                 'recorded_by' => $request->user()?->name,
-                'created_by' => $request->user()?->getAuthIdentifier(),
             ]);
 
             $this->expenseAccounting->postExpense($expense->fresh());
