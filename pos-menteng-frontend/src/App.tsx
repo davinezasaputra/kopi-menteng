@@ -13,12 +13,15 @@ import InventoryOperations from './pages/InventoryOperations';
 import History from './pages/History';
 import RawMaterials from './pages/RawMaterials';
 import RawMaterialImport from './pages/RawMaterialImport';
+import MenuImport from './pages/MenuImport';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Accounting from './pages/Accounting';
 import Customers from './pages/Customer';
 import Hrm from './pages/Hrm';
+import AttendanceManagement from './pages/AttendanceManagement';
 import Employees from './pages/Employees';
+import BusinessRulesSettings from './pages/BusinessRulesSettings';
 import FoundationAdmin from './pages/admin/FoundationAdmin';
 import EnterpriseOperations from './pages/EnterpriseOperations';
 import GuidedOperations from './pages/GuidedOperations';
@@ -82,12 +85,15 @@ function App() {
     <Route path="/history" element={<ProtectedRoute requiredAnyPermission={['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view']}><History /></ProtectedRoute>} />
     <Route path="/raw-materials" element={<ProtectedRoute requiredPermission="inventory.stock.view"><RawMaterials /></ProtectedRoute>} />
     <Route path="/raw-materials/import" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><RawMaterialImport /></ProtectedRoute>} />
+    <Route path="/inventory/menu-import" element={<ProtectedRoute requiredPermission="inventory.stock.adjust"><MenuImport /></ProtectedRoute>} />
     <Route path="/dashboard" element={<ProtectedRoute requiredAnyPermission={['sales.reporting.view', 'accounting.report.view', 'inventory.stock.view']}><Dashboard /></ProtectedRoute>} />
     <Route path="/users" element={<ProtectedRoute requiredPermission="users.user.view"><Users /></ProtectedRoute>} />
     <Route path="/accounting" element={<ProtectedRoute requiredAnyPermission={['accounting.journal.view', 'accounting.erp_account.view', 'accounting.report.view']}><Accounting /></ProtectedRoute>} />
     <Route path="/customers" element={<ProtectedRoute requiredPermission="sales.order.view"><Customers /></ProtectedRoute>} />
     <Route path="/employees" element={<ProtectedRoute requiredPermission="hr.employee.view"><Employees /></ProtectedRoute>} />
     <Route path="/hrm" element={<ProtectedRoute requiredPermission="hr.employee.view"><Hrm /></ProtectedRoute>} />
+    <Route path="/hrm/attendance" element={<ProtectedRoute requiredPermission="hr.employee.view"><AttendanceManagement /></ProtectedRoute>} />
+    <Route path="/admin/business-rules" element={<ProtectedRoute requiredAnyPermission={['hr.employee.manage','pos.receipt_template.manage','inventory.stock.adjust']}><BusinessRulesSettings /></ProtectedRoute>} />
     <Route path="/admin/foundation" element={<ProtectedRoute requiredPermission="rbac.role.view"><FoundationAdmin /></ProtectedRoute>} />
     <Route path="/admin/pos/receipt-template" element={<ProtectedRoute requiredPermission="pos.receipt_template.view"><ReceiptTemplateSettings /></ProtectedRoute>} />
     <Route path="/erp/operations" element={<ProtectedRoute requiredAnyPermission={['inventory.stock.view', 'purchasing.supplier.view', 'purchasing.order.view', 'sales.order.view', 'accounting.report.view']}><OperationsCenter /></ProtectedRoute>} />
