@@ -234,4 +234,25 @@ class LegacyAccountingFacadeSecurityTest extends TestCase
         $this->assertDatabaseCount('erp_journal_batches', 0);
         $this->assertDatabaseCount('journal_entries', 0);
     }
+
+    public function test_legacy_journal_endpoint_rejects_zero_value_line(): void
+    {
+        [$tenant, $company, $branch] = $this->identity();
+        [$cash, $expense] = $this->accounts($tenant->id, $company->id);
+        $this->openPeriod($tenant, $company);
+
+        $response = $this->postJson('/api/accounting/journals', [
+            'branch_id' => $branch->id,
+            'journal_date' => '2026-09-15',
+            'description' => 'Zero line attempt',
+            'lines' => [
+                ['account_id' => $expense->id, 'debit' => 100000, 'credit' => 0],
+                ['account_id' => $cash->id, 'debit' => 0, 'credit' => 100000],
+                ['account_id' => $cash->id, 'debit' => 0, 'credit' => 0],
+            ],
+        ]);
+
+        $response->assertUnprocessable()->assertJsonValidationErrors(['lines']);
+        $this->assertDatabaseCount('erp_journal_batches', 0);
+    }
 }
