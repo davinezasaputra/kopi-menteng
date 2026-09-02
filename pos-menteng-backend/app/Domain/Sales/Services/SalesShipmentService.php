@@ -143,7 +143,8 @@ class SalesShipmentService
                         ['account_id'=>$cogs->id,'debit'=>$totalCost,'credit'=>0,'description'=>'Recognize cost of goods sold'],
                         ['account_id'=>$inventory->id,'debit'=>0,'credit'=>$totalCost,'description'=>'Reduce inventory asset'],
                     ],
-                    (int)$row->branch_id
+                    (int)$row->branch_id,
+                    $shipment->shipment_date?->toDateString()
                 );
             }
 
