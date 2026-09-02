@@ -20,6 +20,21 @@ class AuthController extends Controller
         try { $this->context->resolveFor($user); return true; } catch (\Throwable) { return false; }
     }
 
+    private function authContextPayload(): array
+    {
+        $membership = $this->context->membership();
+        $permissions = $membership?->role?->permissions?->pluck('name')->values()->all() ?? [];
+
+        return [
+            'tenant_id' => $this->context->tenantId(),
+            'company_id' => $this->context->companyId(),
+            'branch_id' => $this->context->branchId(),
+            'location_id' => $this->context->locationId(),
+            'role' => $membership?->role?->code,
+            'permissions' => $permissions,
+        ];
+    }
+
     private function auditIfScoped(string $event, string $module, User $user, Request $request, array $data): void
     {
         if ($this->context->membership()) $this->audit->record($event,$module,$user,null,$data,$request);
@@ -39,7 +54,13 @@ class AuthController extends Controller
         RateLimiter::clear($key); $this->hydrateContext($user);
         $token=$user->createToken('auth_token',['*'])->plainTextToken;
         $this->auditIfScoped('login','auth',$user,$request,['method'=>'password']);
-        return response()->json(['status'=>'success','message'=>'Login Berhasil Halo','data'=>['user'=>$user,'nama'=>$user->name,'token'=>$token]],200);
+        return response()->json(['status'=>'success','message'=>'Login Berhasil Halo','data'=>[
+            'user'=>$user,
+            'nama'=>$user->name,
+            'token'=>$token,
+            'context'=>$this->authContextPayload(),
+            'permissions'=>$this->authContextPayload()['permissions'],
+        ]],200);
     }
 
     public function loginPin(Request $request)
@@ -58,7 +79,13 @@ class AuthController extends Controller
         $this->hydrateContext($user);
         $token=$user->createToken('auth_token',['pos'])->plainTextToken;
         $this->auditIfScoped('login','auth.pin',$user,$request,['method'=>'pin']);
-        return response()->json(['status'=>'success','message'=>'Login Berhasil Halo','data'=>['user'=>$user,'nama'=>$user->name,'token'=>$token]],200);
+        return response()->json(['status'=>'success','message'=>'Login Berhasil Halo','data'=>[
+            'user'=>$user,
+            'nama'=>$user->name,
+            'token'=>$token,
+            'context'=>$this->authContextPayload(),
+            'permissions'=>$this->authContextPayload()['permissions'],
+        ]],200);
     }
 
     public function logout(Request $request)
