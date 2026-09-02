@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Accounting\Services\OperationalExpenseAccountingService;
 use App\Domain\Audit\Services\AuditService;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
@@ -18,6 +19,7 @@ class FinanceController extends Controller
     public function __construct(
         private readonly TenantContext $context,
         private readonly AuditService $audit,
+        private readonly OperationalExpenseAccountingService $expenseAccounting,
     ) {}
 
     private function scopedOrders()
@@ -93,12 +95,32 @@ class FinanceController extends Controller
 
     public function addExpense(Request $request)
     {
-        $validated = $request->validate(['name'=>'required|string|max:255','amount'=>'required|numeric|min:0','expense_date'=>'required|date']);
-        $expense = OperationalExpense::create($validated + [
-            'tenant_id'=>$this->context->tenantId(),'company_id'=>$this->context->companyId(),'branch_id'=>$this->context->branchId(),'recorded_by'=>$request->user()->name,
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01',
+            'expense_date' => 'required|date',
         ]);
-        $this->audit->record('created','finance.operational_expense',$expense,null,$expense->toArray());
-        return response()->json(['status'=>'success','message'=>'Biaya operasional dicatat.','data'=>$expense],201);
+
+        $expense = DB::transaction(function () use ($validated, $request) {
+            $expense = OperationalExpense::create($validated + [
+                'tenant_id' => $this->context->tenantId(),
+                'company_id' => $this->context->companyId(),
+                'branch_id' => $this->context->branchId(),
+                'recorded_by' => $request->user()?->name,
+                'created_by' => $request->user()?->getAuthIdentifier(),
+            ]);
+
+            $this->expenseAccounting->postExpense($expense->fresh());
+            return $expense->fresh();
+        });
+
+        $this->audit->record('created', 'finance.operational_expense', $expense, null, $expense->toArray());
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Biaya operasional dicatat dan dijurnal ke ERP.',
+            'data' => $expense,
+        ], 201);
     }
 
     public function exportCsv(Request $request)
