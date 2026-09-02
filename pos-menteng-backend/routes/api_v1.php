@@ -41,7 +41,12 @@ Route::prefix('v1')->middleware(['request.id','security.headers'])->group(functi
             Route::get('/organizations/cost-centers', [FoundationController::class, 'costCenters'])->middleware('permission:organization.branch.view');
             Route::get('/organizations', [TenantOrganizationController::class, 'index'])->middleware('permission:organization.branch.view');
             Route::post('/organizations/companies', [TenantOrganizationController::class, 'storeCompany'])->middleware('permission:organization.branch.manage');
+            Route::put('/organizations/companies/{id}', [TenantOrganizationController::class, 'updateCompany'])->middleware('permission:organization.branch.manage');
             Route::post('/organizations/branches', [TenantOrganizationController::class, 'storeBranch'])->middleware('permission:organization.branch.manage');
+            Route::put('/organizations/branches/{id}', [TenantOrganizationController::class, 'updateBranch'])->middleware('permission:organization.branch.manage');
+            Route::post('/organizations/branches/{branchId}/locations', [TenantOrganizationController::class, 'storeLocation'])->middleware('permission:organization.branch.manage');
+            Route::put('/organizations/locations/{id}', [TenantOrganizationController::class, 'updateLocation'])->middleware('permission:organization.branch.manage');
+            Route::delete('/organizations/locations/{id}', [TenantOrganizationController::class, 'destroyLocation'])->middleware('permission:organization.branch.manage');
         });
         Route::prefix('developer')->middleware('platform.admin')->group(function () {
             Route::get('/license-catalog', [DeveloperController::class, 'licenseCatalog']);
