@@ -135,7 +135,7 @@ class ErpMasterSeeder extends Seeder
                 'organization.branch.view','hr.employee.view',
             ],
             'cashier' => ['pos.sale.view','pos.sale.create','sales.order.view','sales.order.create'],
-'accountant' => ['accounting.journal.view','accounting.journal.create','accounting.journal.post','accounting.erp_account.view','accounting.erp_account.create','accounting.erp_journal.view','accounting.erp_journal.create','accounting.fiscal_period.view','accounting.fiscal_period.manage','accounting.report.view','accounting.reconciliation.view','accounting.reconciliation.create','accounting.period.close','purchasing.ap.view','purchasing.reconciliation.view'],
+            'accountant' => ['accounting.journal.view','accounting.journal.create','accounting.journal.post','accounting.erp_account.view','accounting.erp_account.create','accounting.erp_journal.view','accounting.erp_journal.create','accounting.fiscal_period.view','accounting.fiscal_period.manage','accounting.report.view','accounting.reconciliation.view','accounting.reconciliation.create','accounting.period.close','purchasing.ap.view','purchasing.reconciliation.view'],
             'warehouse-manager' => ['inventory.stock.view','inventory.stock.adjust','purchasing.supplier.view','purchasing.requisition.view','purchasing.requisition.create'],
             'hr-manager' => ['hr.employee.view','hr.employee.manage'],
         ];
@@ -162,27 +162,6 @@ class ErpMasterSeeder extends Seeder
                 'erp_role' => 'tenant-admin',
                 'password_env' => 'SEED_DEVELOPER_PASSWORD',
             ],
-            [
-                'email' => 'sales.manager@menteng.test',
-                'name' => 'Sales Manager',
-                'legacy_role' => 'manager',
-                'erp_role' => 'sales-manager',
-                'password_env' => 'SEED_SALES_MANAGER_PASSWORD',
-            ],
-            [
-                'email' => 'purchasing.manager@menteng.test',
-                'name' => 'Purchasing Manager',
-                'legacy_role' => 'manager',
-                'erp_role' => 'purchasing-manager',
-                'password_env' => 'SEED_PURCHASING_MANAGER_PASSWORD',
-            ],
-            [
-                'email' => 'kasir1@menteng.com',
-                'name' => 'Kasir Satu',
-                'legacy_role' => 'kasir',
-                'erp_role' => 'cashier',
-                'password_env' => 'SEED_CASHIER_PASSWORD',
-            ],
         ];
 
         foreach ($users as $definition) {
@@ -192,7 +171,7 @@ class ErpMasterSeeder extends Seeder
                     'name'=>$definition['name'],
                     'password'=>Hash::make(env($definition['password_env'], 'change-me-immediately')),
                     'role'=>$definition['legacy_role'],
-                    'pin'=>$definition['erp_role'] === 'cashier' ? env('SEED_CASHIER_PIN') : null,
+                    'pin'=>null,
                 ]
             );
 
@@ -372,7 +351,7 @@ class ErpMasterSeeder extends Seeder
                 ->where('tenant_id',$tenant->id)->where('company_id',$company->id)->where('branch_id',$branch->id)
                 ->where('min_amount',1000000)->where('max_amount',10000000)->exists()) {
                 PurchasingApprovalMatrixRule::create([
-                    'tenant_id'=>$tenant->id,'company_id'=>$company->id,'branch_id'=>$branch->id,
+                    'tenant_id'=>$tenant->id,'company_id'=>$company->id,'branch_id'=>$branch->branch_id ?? $branch->id,
                     'approver_role_id'=>$roleId,'document_type'=>'purchase_order',
                     'min_amount'=>1000000,'max_amount'=>10000000,'priority'=>2,'is_active'=>true,
                     'notes'=>'Demo purchasing approval Rp1 juta-Rp10 juta',
@@ -403,7 +382,7 @@ class ErpMasterSeeder extends Seeder
         }
 
         $this->command?->info('ERP master seed completed.');
-        $this->command?->info('Demo users: Davin Developer, Sales Manager, Purchasing Manager, Cashier.');
-        $this->command?->warn('Default passwords are change-me-immediately unless SEED_*_PASSWORD variables are configured.');
+        $this->command?->info('Demo account: Davin Developer only.');
+        $this->command?->warn('Developer password is change-me-immediately unless SEED_DEVELOPER_PASSWORD is configured.');
     }
 }
