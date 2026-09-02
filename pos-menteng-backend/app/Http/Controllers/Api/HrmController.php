@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Audit\Services\AuditService;
+use App\Domain\Hrm\Services\PayrollAccountingService;
 use App\Domain\Hrm\Services\PayrollAutomationService;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
@@ -17,7 +18,12 @@ use Illuminate\Validation\Rule;
 
 class HrmController extends Controller
 {
-    public function __construct(private readonly TenantContext $context,private readonly AuditService $audit,private readonly PayrollAutomationService $payrollAutomation) {}
+    public function __construct(
+        private readonly TenantContext $context,
+        private readonly AuditService $audit,
+        private readonly PayrollAutomationService $payrollAutomation,
+        private readonly PayrollAccountingService $payrollAccounting,
+    ) {}
 
     private function employeeQuery()
     {
@@ -60,8 +66,21 @@ class HrmController extends Controller
     public function payrollNotificationStatus(string $id){$n=PayrollNotification::with('payroll.employee')->whereKey($id)->whereHas('payroll',fn($q)=>$q->where('tenant_id',$this->context->tenantId())->where('company_id',$this->context->companyId())->where('branch_id',$this->context->branchId())->when($this->context->locationId()!==null,fn($q)=>$q->where('location_id',$this->context->locationId())))->firstOrFail();return response()->json(['status'=>'success','data'=>$this->payrollAutomation->syncNotificationStatus($n)]);}
 
     public function paySalary(string $id){
-        $payroll=$this->payrollScopedQuery()->with('employee')->findOrFail($id);if($payroll->is_paid)return response()->json(['status'=>'error','message'=>'Gaji ini sudah ditransfer sebelumnya.'],400);
-        DB::transaction(function()use($payroll){$old=$payroll->toArray();$payroll->update(['is_paid'=>true]);$this->audit->record('paid','hrm.payroll',$payroll,$old,$payroll->fresh()->toArray());});
+        $payroll=$this->payrollScopedQuery()->with('employee')->findOrFail($id);
+        if($payroll->is_paid)return response()->json(['status'=>'error','message'=>'Gaji ini sudah ditransfer sebelumnya.'],400);
+
+        $automation=[];
+        try {
+            DB::transaction(function()use($payroll){
+                $old=$payroll->toArray();
+                $payroll->update(['is_paid'=>true]);
+                $this->payrollAccounting->postPayment($payroll->fresh());
+                $this->audit->record('paid','hrm.payroll',$payroll->fresh(),$old,$payroll->fresh()->toArray());
+            });
+        } catch (\Throwable $e) {
+            throw $e;
+        }
+
         try{$automation=$this->payrollAutomation->handlePaidPayroll($payroll->fresh());}catch(\Throwable $e){$this->audit->record('payroll_notification_dispatch_failed','hrm.payroll',$payroll,null,['error'=>$e->getMessage()]);$automation=['status'=>'failed','message'=>'Pembayaran sukses, tetapi automation WhatsApp/PDF gagal diproses.','error'=>$e->getMessage()];}
         return response()->json(['status'=>'success','message'=>'Gaji berhasil dibayar dan jurnal pembayaran diproses.','automation'=>$automation]);
     }
