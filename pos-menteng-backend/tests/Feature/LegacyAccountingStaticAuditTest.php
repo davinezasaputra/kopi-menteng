@@ -41,13 +41,13 @@ class LegacyAccountingStaticAuditTest extends TestCase
             }
 
             $patterns = [
-                '/\bJournalEntry\s*::\s*/',
-                '/\bAccount\s*::\s*(?:create|query|where|first|find|all|with|pluck|get|orderBy)/',
-                '/\bGeneralLedger\s*::\s*/',
-                '/\bnew\s+(?:JournalEntry|Account|GeneralLedger)\b/',
-                '/\buse\s+App\\Models\\(?:Account|JournalEntry|GeneralLedger)\s*;/',
-                "/['\"]journal_entries['\"])/",
-                "/['\"]general_ledgers['\"])/",
+                '~\bJournalEntry\s*::\s*~',
+                '~\bAccount\s*::\s*(?:create|query|where|first|find|all|with|pluck|get|orderBy)~',
+                '~\bGeneralLedger\s*::\s*~',
+                '~\bnew\s+(?:JournalEntry|Account|GeneralLedger)\b~',
+                '~\buse\s+App\\\\Models\\\\(?:Account|JournalEntry|GeneralLedger)\s*;~',
+                '~[\'\"]journal_entries[\'\"]~',
+                '~[\'\"]general_ledgers[\'\"]~',
             ];
 
             foreach ($patterns as $pattern) {
