@@ -8,10 +8,10 @@ use App\Domain\Identity\Models\Role;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Company;
 use App\Domain\Organization\Models\Location;
-use App\Domain\Organization\Models\TenantLicense;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
+use App\Support\Tenancy\TenantQuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -43,12 +43,6 @@ class UserController extends Controller
             'role_code'=>'required|string|max:100','company_id'=>'nullable|integer','branch_id'=>'nullable|integer','location_id'=>'nullable|integer',
         ]);
 
-        $license = TenantLicense::query()->where('tenant_id',$context->tenantId())->first();
-        if ($license && $license->max_users !== null) {
-            $activeUsers = Membership::query()->where('tenant_id',$context->tenantId())->where('status','active')->count();
-            if ($activeUsers >= $license->max_users) return response()->json(['status'=>'error','message'=>"Batas user lisensi tercapai ({$license->max_users}). Upgrade lisensi untuk menambah user."],422);
-        }
-
         $role = Role::query()->where('tenant_id',$context->tenantId())->where('code',$validated['role_code'])->firstOrFail();
         $companyId = $validated['company_id'] ?? $context->companyId();
         $branchId = $validated['branch_id'] ?? $context->branchId();
@@ -59,13 +53,17 @@ class UserController extends Controller
         if ($branchId !== null) abort_unless(Branch::query()->whereKey($branchId)->whereHas('company',fn($q)=>$q->where('tenant_id',$context->tenantId())->whereKey($companyId))->exists(),403);
         if ($locationId !== null) abort_unless(Location::query()->whereKey($locationId)->where('branch_id',$branchId)->whereHas('branch.company',fn($q)=>$q->where('id',$companyId)->where('tenant_id',$context->tenantId()))->exists(),403);
 
-        $user = DB::transaction(function () use ($validated,$context,$role,$companyId,$branchId,$locationId) {
+        $tenantId = (int) $context->tenantId();
+        $quota = app(TenantQuotaService::class);
+        $user = DB::transaction(function () use ($validated,$context,$role,$companyId,$branchId,$locationId,$tenantId,$quota) {
+            $quota->lockTenant($tenantId);
+            $quota->assertCanCreate($tenantId, 'user');
             $user = User::create([
                 'name'=>$validated['name'],'email'=>$validated['email'],'password'=>Hash::make($validated['password']),
                 'role'=>match($role->code){'tenant-admin'=>'owner','branch-manager'=>'manager','cashier'=>'kasir',default=>'kasir'},
-                'default_tenant_id'=>$context->tenantId(),'default_company_id'=>$companyId,'default_branch_id'=>$branchId,
+                'default_tenant_id'=>$tenantId,'default_company_id'=>$companyId,'default_branch_id'=>$branchId,
             ]);
-            Membership::create(['tenant_id'=>$context->tenantId(),'user_id'=>$user->id,'company_id'=>$companyId,'branch_id'=>$branchId,'location_id'=>$locationId,'role_id'=>$role->id,'status'=>'active','is_primary'=>true]);
+            Membership::create(['tenant_id'=>$tenantId,'user_id'=>$user->id,'company_id'=>$companyId,'branch_id'=>$branchId,'location_id'=>$locationId,'role_id'=>$role->id,'status'=>'active','is_primary'=>true]);
             return $user;
         });
 
