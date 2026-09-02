@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Accounting\Services\RestockAccountingService;
 use App\Domain\Audit\Services\AuditService;
 use App\Http\Controllers\Controller;
 use App\Models\RawMaterial;
@@ -15,6 +16,7 @@ class RawMaterialController extends Controller
     public function __construct(
         private readonly TenantContext $context,
         private readonly AuditService $audit,
+        private readonly RestockAccountingService $restockAccounting,
     ) {}
 
     private function scopedQuery()
@@ -93,11 +95,12 @@ class RawMaterialController extends Controller
     {
         $validated = $request->validate([
             'quantity_added'=>'required|numeric|min:1',
-            'total_cost'=>'required|numeric|min:0',
-            'receipt_image'=>'nullable|image|max:2048'
+            'total_cost'=>'required|numeric|min:0.01',
+            'receipt_image'=>'nullable|image|max:2048',
         ]);
 
         $imagePath = $request->hasFile('receipt_image') ? $request->file('receipt_image')->store('receipts','public') : null;
+
         $restock = DB::transaction(function () use ($validated, $imagePath, $id) {
             $material = $this->findScoped($id);
             $material = RawMaterial::query()->whereKey($material->id)->lockForUpdate()->firstOrFail();
@@ -108,6 +111,7 @@ class RawMaterialController extends Controller
             $material->stock = $newStock;
             $material->is_requested = false;
             $material->save();
+
             $restock = RestockHistory::create([
                 'tenant_id' => $this->context->tenantId(),
                 'company_id' => $this->context->companyId(),
@@ -118,10 +122,13 @@ class RawMaterialController extends Controller
                 'receipt_image' => $imagePath,
                 'restocked_by' => auth()->user()?->name ?? 'System',
             ]);
+
+            $this->restockAccounting->postRestock($restock);
             $this->audit->record('restocked', 'inventory.raw_material', $material, $old, $material->fresh()->toArray());
+
             return $restock;
         });
 
-        return response()->json(['status'=>'success','message'=>'Stok dan biaya pembelian berhasil dicatat','data'=>$restock]);
+        return response()->json(['status'=>'success','message'=>'Stok, biaya pembelian, dan jurnal ERP berhasil dicatat','data'=>$restock]);
     }
 }
