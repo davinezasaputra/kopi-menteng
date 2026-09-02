@@ -156,7 +156,8 @@ class SupplierReturnService
                     ['account_id'=>$apAccount->id,'debit'=>$totalValue,'credit'=>0,'description'=>'Supplier return reduction of AP'],
                     ['account_id'=>$inventoryAccount->id,'debit'=>0,'credit'=>$totalValue,'description'=>'Inventory returned to supplier'],
                 ],
-                (int)$return->branch_id
+                (int)$return->branch_id,
+                $return->return_date
             );
 
             $this->audit->record('posted','supplier_return',$return,null,$return->toArray());

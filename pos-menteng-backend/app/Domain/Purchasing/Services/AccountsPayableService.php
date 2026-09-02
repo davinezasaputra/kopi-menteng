@@ -106,6 +106,7 @@ class AccountsPayableService
                     ],
                 ],
                 (int) $invoice->branch_id,
+                $invoice->invoice_date,
             );
 
             $this->audit->record('created','supplier_invoice',$invoice,null,$invoice->toArray());
@@ -198,6 +199,7 @@ class AccountsPayableService
                     ],
                 ],
                 (int) $row->branch_id,
+                $payment->payment_date,
             );
 
             $this->audit->record('created','supplier_payment',$payment,null,$payment->toArray());
