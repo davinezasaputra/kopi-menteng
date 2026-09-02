@@ -25,12 +25,24 @@ class PermissionService
         if (! $role) return false;
 
         if ($role->code === 'tenant-admin') {
-            // Tenant-admin remains a tenant-scoped super-admin, but direct membership
-            // overrides are also supported for delegated/restricted admin accounts.
             $overrides = $membership->permissionOverrides()->with('permission')->get();
             if ($overrides->isNotEmpty()) {
                 return $overrides->contains(fn ($item) => $item->permission?->name === $permission);
             }
+            return true;
+        }
+
+        // Legacy tenant-admin accounts may still use users.role=owner while
+        // their ERP membership is being migrated to the tenant-admin role.
+        if ($user->role === 'owner' && in_array($permission, [
+            'organization.branch.view',
+            'organization.branch.manage',
+            'users.user.view',
+            'users.user.create',
+            'users.user.delete',
+            'rbac.role.view',
+            'audit.audit_log.view',
+        ], true)) {
             return true;
         }
 
