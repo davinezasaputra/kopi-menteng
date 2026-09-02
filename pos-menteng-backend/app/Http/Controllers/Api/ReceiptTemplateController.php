@@ -31,6 +31,9 @@ class ReceiptTemplateController extends Controller
             'address' => 'Jl. Jenderal Sudirman',
             'phone' => null,
             'logo_url' => null,
+            'bill_title' => 'NOTA PENJUALAN',
+            'bill_subtitle' => null,
+            'ppn_rate' => 11,
             'paper_width' => '80mm',
             'show_cashier' => true,
             'show_customer' => true,
@@ -48,11 +51,7 @@ class ReceiptTemplateController extends Controller
     public function show()
     {
         $template = ReceiptTemplate::query()->where($this->scope())->first();
-
-        return response()->json([
-            'status' => 'success',
-            'data' => array_merge($this->defaults(), $template?->toArray() ?? []),
-        ]);
+        return response()->json(['status' => 'success', 'data' => array_merge($this->defaults(), $template?->toArray() ?? [])]);
     }
 
     public function update(Request $request)
@@ -62,6 +61,9 @@ class ReceiptTemplateController extends Controller
             'address' => ['nullable', 'string', 'max:1000'],
             'phone' => ['nullable', 'string', 'max:40'],
             'logo_url' => ['nullable', 'string', 'max:500'],
+            'bill_title' => ['required', 'string', 'max:120'],
+            'bill_subtitle' => ['nullable', 'string', 'max:255'],
+            'ppn_rate' => ['required', 'numeric', 'min:0', 'max:100'],
             'paper_width' => ['required', 'in:58mm,80mm'],
             'show_cashier' => ['required', 'boolean'],
             'show_customer' => ['required', 'boolean'],
