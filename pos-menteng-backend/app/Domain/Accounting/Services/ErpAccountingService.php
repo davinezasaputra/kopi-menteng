@@ -93,19 +93,54 @@ class ErpAccountingService
         $journalDate = $data['journal_date'] ?? now()->toDateString();
         $this->closing->assertOpenForDate($journalDate, $membership->tenant_id, $membership->company_id);
 
-        $lines = $data['lines'];
-        $debit = round(collect($lines)->sum(fn ($line) => (float)($line['debit'] ?? 0)), 2);
-        $credit = round(collect($lines)->sum(fn ($line) => (float)($line['credit'] ?? 0)), 2);
+        $lines = $data['lines'] ?? null;
+        if (! is_array($lines) || count($lines) < 2) {
+            throw ValidationException::withMessages([
+                'lines' => 'Journal requires at least two lines.',
+            ]);
+        }
+
+        $normalizedLines = [];
+        foreach ($lines as $line) {
+            $debitRaw = $line['debit'] ?? 0;
+            $creditRaw = $line['credit'] ?? 0;
+
+            if (! is_numeric($debitRaw) || ! is_numeric($creditRaw)) {
+                throw ValidationException::withMessages([
+                    'lines' => 'Journal debit and credit amounts must be numeric.',
+                ]);
+            }
+
+            $debit = round((float) $debitRaw, 2);
+            $credit = round((float) $creditRaw, 2);
+
+            if (! is_finite($debit) || ! is_finite($credit) || $debit < 0 || $credit < 0) {
+                throw ValidationException::withMessages([
+                    'lines' => 'Journal amounts must be finite and non-negative.',
+                ]);
+            }
+
+            if (($debit > 0 && $credit > 0) || ($debit === 0.0 && $credit === 0.0)) {
+                throw ValidationException::withMessages([
+                    'lines' => 'Each journal line must contain exactly one positive amount.',
+                ]);
+            }
+
+            $normalizedLine = $line;
+            $normalizedLine['debit'] = $debit;
+            $normalizedLine['credit'] = $credit;
+            $normalizedLines[] = $normalizedLine;
+        }
+
+        $lines = $normalizedLines;
+        $debit = round(collect($lines)->sum('debit'), 2);
+        $credit = round(collect($lines)->sum('credit'), 2);
 
         if ($debit <= 0 || $credit <= 0 || abs($debit - $credit) > 0.009) {
             throw ValidationException::withMessages(['lines' => 'Journal must be balanced with positive debit and credit totals.']);
         }
 
         foreach ($lines as $line) {
-            if (((float)($line['debit'] ?? 0) > 0) && ((float)($line['credit'] ?? 0) > 0)) {
-                throw ValidationException::withMessages(['lines' => 'A journal line cannot contain both debit and credit.']);
-            }
-
             $account = ErpAccount::query()
                 ->where('tenant_id', $membership->tenant_id)
                 ->where('company_id', $membership->company_id)
@@ -158,8 +193,8 @@ class ErpAccountingService
                 ErpJournalLine::create([
                     'journal_batch_id' => $batch->id,
                     'account_id' => $line['account_id'],
-                    'debit' => $line['debit'] ?? 0,
-                    'credit' => $line['credit'] ?? 0,
+                    'debit' => $line['debit'],
+                    'credit' => $line['credit'],
                     'description' => $line['description'] ?? null,
                 ]);
             }
