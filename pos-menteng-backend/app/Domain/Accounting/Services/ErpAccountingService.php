@@ -91,7 +91,8 @@ class ErpAccountingService
         }
 
         $branchId = $this->resolveBranchId($data, $membership);
-        $this->closing->assertOpenForDate($data['journal_date'] ?? now()->toDateString(), $membership->tenant_id, $membership->company_id);
+        $journalDate = $data['journal_date'] ?? now()->toDateString();
+        $this->closing->assertOpenForDate($journalDate, $membership->tenant_id, $membership->company_id);
 
         $lines = $data['lines'];
         $debit = round(collect($lines)->sum(fn ($line) => (float)($line['debit'] ?? 0)), 2);
@@ -116,7 +117,7 @@ class ErpAccountingService
             }
         }
 
-        return DB::transaction(function () use ($membership, $data, $lines, $debit, $credit, $branchId) {
+        return DB::transaction(function () use ($membership, $data, $lines, $debit, $credit, $branchId, $journalDate) {
             $requestId = request()->attributes->get('request_id');
 
             if ($requestId) {
@@ -136,7 +137,7 @@ class ErpAccountingService
                 'company_id' => $membership->company_id,
                 'branch_id' => $branchId,
                 'journal_number' => $data['journal_number'] ?? $this->numbers->next('erp_journal', 'JRN'),
-                'journal_date' => $data['journal_date'] ?? now()->toDateString(),
+                'journal_date' => $journalDate,
                 'status' => 'posted',
                 'source_type' => $data['source_type'] ?? 'manual',
                 'source_id' => $data['source_id'] ?? null,
@@ -160,12 +161,14 @@ class ErpAccountingService
             return $batch->load('lines.account');
         });
     }
+
     public function postSourceJournal(
         string $sourceType,
         string $sourceId,
         string $description,
         array $lines,
         ?int $branchId = null,
+        ?string $journalDate = null,
     ): ErpJournalBatch {
         $membership = $this->context->membership();
 
@@ -173,7 +176,7 @@ class ErpAccountingService
             throw ValidationException::withMessages(['context' => 'No active ERP context.']);
         }
 
-        return DB::transaction(function () use ($membership, $sourceType, $sourceId, $description, $lines, $branchId) {
+        return DB::transaction(function () use ($membership, $sourceType, $sourceId, $description, $lines, $branchId, $journalDate) {
             $existing = ErpJournalBatch::query()
                 ->where('tenant_id', $membership->tenant_id)
                 ->where('company_id', $membership->company_id)
@@ -186,8 +189,15 @@ class ErpAccountingService
                 return $existing;
             }
 
+            if ($journalDate === null) {
+                throw ValidationException::withMessages([
+                    'journal_date' => 'Automatic journal posting requires the source business date.',
+                ]);
+            }
+
             return $this->postJournal([
                 'branch_id' => $branchId ?? $membership->branch_id,
+                'journal_date' => $journalDate,
                 'source_type' => $sourceType,
                 'source_id' => $sourceId,
                 'description' => $description,
@@ -195,5 +205,4 @@ class ErpAccountingService
             ]);
         });
     }
-
 }
