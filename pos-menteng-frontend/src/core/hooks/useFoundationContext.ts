@@ -12,6 +12,7 @@ export function useFoundationContext() {
     const token = localStorage.getItem('token');
     if (!token) {
       localStorage.removeItem('foundation_loaded');
+      setLoading(false);
       return;
     }
 
@@ -22,11 +23,20 @@ export function useFoundationContext() {
         const next = data?.data || data;
         const apiContext = next?.context || {};
         const role = next?.role || apiContext?.role;
-        const permissions = Array.isArray(next?.permissions)
-          ? next.permissions
-          : role === 'tenant-admin'
-            ? ['*']
-            : [];
+        let permissions: string[];
+
+        if (Array.isArray(next?.permissions)) {
+          permissions = next.permissions;
+        } else {
+          try {
+            const stored = JSON.parse(localStorage.getItem('permissions') || '[]');
+            permissions = Array.isArray(stored) ? stored : [];
+          } catch {
+            permissions = [];
+          }
+          if (permissions.length === 0 && role === 'tenant-admin') permissions = ['*'];
+        }
+
         const normalized = {
           ...next,
           tenant_id: next?.tenant_id ?? apiContext?.tenant_id ?? null,
