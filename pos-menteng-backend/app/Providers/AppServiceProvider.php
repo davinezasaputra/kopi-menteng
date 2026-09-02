@@ -3,9 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Leave;
-use App\Models\OperationalExpense;
 use App\Observers\LeaveObserver;
-use App\Observers\OpExObserver;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -35,7 +33,6 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute((int) env('ERP_LOGIN_RATE_LIMIT', 10))->by($request->ip())
         );
 
-        OperationalExpense::observe(OpExObserver::class);
         Leave::observe(LeaveObserver::class);
     }
 }
